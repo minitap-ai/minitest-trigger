@@ -1,12 +1,6 @@
 import * as core from '@actions/core'
 import { uploadBuild, triggerRun } from './api'
 
-/**
- * The OIDC audience must match the testing-service's expected audience.
- * GitHub Actions will issue a JWT with this audience claim.
- */
-const OIDC_AUDIENCE = 'https://testing-service.minitap.ai'
-
 async function run(): Promise<void> {
   try {
     // ── Read inputs ──────────────────────────────────────────────────
@@ -25,8 +19,8 @@ async function run(): Promise<void> {
       : undefined
 
     // ── Obtain OIDC token ────────────────────────────────────────────
-    core.info('Requesting GitHub OIDC token...')
-    const token = await core.getIDToken(OIDC_AUDIENCE)
+    core.info(`Requesting GitHub OIDC token with audience: ${apiUrl}`)
+    const token = await core.getIDToken(apiUrl)
     core.info('OIDC token obtained successfully')
 
     // ── Debug: log decoded OIDC claims (not the raw token) ─────────
