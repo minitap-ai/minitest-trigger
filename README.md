@@ -1,6 +1,6 @@
 # Minitap Trigger Tests Action
 
-A GitHub Action that triggers your [Minitest](https://minitap.ai) suite from your CI workflow. It authenticates via GitHub OIDC, optionally uploads build artifacts, and kicks off test execution — all fire-and-forget. Results are reported back to your PR via GitHub Check Runs.
+A GitHub Action that triggers your [Minitest](https://minitap.ai) suite from your CI workflow. It authenticates via GitHub OIDC, uploads your build artifacts, and kicks off test execution — all fire-and-forget. Results are reported back to your PR via GitHub Check Runs.
 
 ## Quick Start
 
@@ -18,21 +18,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
+      # Build your app for simulators/emulators (your build steps here)
+
       - uses: minitap-ai/minitest-trigger@v1
         with:
           app-slug: my-app
+          ios-build-path: ./build/MyApp.app
+          android-build-path: ./build/app-debug.apk
 ```
 
 ## Inputs
 
-| Input                | Required | Default                                  | Description                                                |
-| -------------------- | -------- | ---------------------------------------- | ---------------------------------------------------------- |
-| `app-slug`           | Yes      | —                                        | The Minitest app slug to test                              |
-| `flow-types`         | No       | —                                        | Comma-separated flow types to run (e.g., `login,checkout`) |
-| `ios-build-path`     | No       | —                                        | Path to the iOS `.ipa` file to upload                      |
-| `android-build-path` | No       | —                                        | Path to the Android `.apk` file to upload                  |
-| `tenant-id`          | No       | —                                        | Tenant ID (required if repo is linked to multiple tenants) |
-| `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                      |
+| Input                | Required | Default                                  | Description                                                       |
+| -------------------- | -------- | ---------------------------------------- | ----------------------------------------------------------------- |
+| `app-slug`           | Yes      | —                                        | The Minitest app slug to test                                     |
+| `ios-build-path`     | \*       | —                                        | Path to the iOS simulator build (`.app` directory or `.ipa` file) |
+| `android-build-path` | \*       | —                                        | Path to the Android emulator build (`.apk`, must target x86-64)   |
+| `flow-types`         | No       | —                                        | Comma-separated flow types to run (e.g., `login,checkout`)        |
+| `tenant-id`          | No       | —                                        | Tenant ID (required if repo is linked to multiple tenants)        |
+| `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                             |
+
+> **\*** At least one of `ios-build-path` or `android-build-path` is required.
 
 ## Outputs
 
@@ -43,30 +50,78 @@ jobs:
 
 ## How It Works
 
-1. **OIDC Authentication** — Requests a GitHub OIDC token scoped to the Minitap API. No secrets to manage!
-2. **Build Upload** (optional) — Uploads iOS `.ipa` and/or Android `.apk` files to Minitap
-3. **Trigger Run** — Calls the Minitap CI API with your configuration
-4. **Fire & Forget** — The action exits immediately. Results are reported back via GitHub Check Runs
+1. **Validate Builds** — Checks that your build artifacts meet the requirements (see below)
+2. **OIDC Authentication** — Requests a GitHub OIDC token scoped to the Minitap API. No secrets to manage!
+3. **Upload Builds** — Uploads your simulator/emulator builds to Minitap (`.app` bundles are automatically packaged into `.ipa`)
+4. **Trigger Run** — Calls the Minitap CI API with your configuration
+5. **Fire & Forget** — The action exits immediately. Results are reported back via GitHub Check Runs
+
+## Build Requirements
+
+You must provide at least one build artifact. Minitap runs your app on simulators and emulators, so builds must target those environments.
+
+### iOS
+
+Provide a **simulator** `.app` bundle or a `.ipa` file.
+
+| Format | Description                                                     |
+| ------ | --------------------------------------------------------------- |
+| `.app` | Simulator bundle directory (automatically packaged into `.ipa`) |
+| `.ipa` | IPA file (uploaded as-is)                                       |
+
+To build for the iOS Simulator with `xcodebuild`:
+
+```bash
+xcodebuild build \
+  -scheme MyApp \
+  -sdk iphonesimulator \
+  -configuration Debug \
+  -derivedDataPath ./build
+# Output: ./build/Build/Products/Debug-iphonesimulator/MyApp.app
+```
+
+### Android
+
+Provide a **`.apk`** file built for **x86-64** emulators. The action inspects the APK and verifies it contains native libraries for the `x86_64` architecture (`lib/x86_64/`).
+
+To build an x86-64 debug APK with Gradle:
+
+```bash
+./gradlew assembleDebug -Parch=x86_64
+# Output: app/build/outputs/apk/debug/app-debug.apk
+```
+
+> **Note:** If your APK only contains `arm64-v8a` or `armeabi-v7a` libraries, the action will fail with a clear error telling you which architectures were found.
 
 ## Examples
 
-### Run specific flow types
+### iOS only
 
 ```yaml
 - uses: minitap-ai/minitest-trigger@v1
   with:
     app-slug: my-app
-    flow-types: login,checkout,onboarding
+    ios-build-path: ./build/Build/Products/Debug-iphonesimulator/MyApp.app
 ```
 
-### Upload iOS and Android builds
+### Android only
+
+```yaml
+- uses: minitap-ai/minitest-trigger@v1
+  with:
+    app-slug: my-app
+    android-build-path: ./app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Both platforms with specific flow types
 
 ```yaml
 - uses: minitap-ai/minitest-trigger@v1
   with:
     app-slug: my-app
     ios-build-path: ./build/MyApp.ipa
-    android-build-path: ./build/app-release.apk
+    android-build-path: ./build/app-debug.apk
+    flow-types: login,checkout,onboarding
 ```
 
 ### Multi-tenant setup
@@ -75,6 +130,7 @@ jobs:
 - uses: minitap-ai/minitest-trigger@v1
   with:
     app-slug: my-app
+    android-build-path: ./build/app-debug.apk
     tenant-id: tenant_abc123
 ```
 
