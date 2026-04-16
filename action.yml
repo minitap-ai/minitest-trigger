@@ -13,10 +13,10 @@ inputs:
     description: 'Comma-separated flow types to run (e.g., "login,checkout")'
     required: false
   ios-build-path:
-    description: 'Path to the iOS .ipa file to upload'
+    description: 'Path to the iOS simulator build (.app directory or .ipa file)'
     required: false
   android-build-path:
-    description: 'Path to the Android .apk file to upload'
+    description: 'Path to the Android emulator build (.apk, must target x86-64)'
     required: false
   tenant-id:
     description: 'Tenant ID (required if repo is linked to multiple tenants)'
