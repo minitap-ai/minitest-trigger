@@ -1,0 +1,37 @@
+name: 'Trigger Minitest Suite'
+description: 'Trigger your Minitest suite from your CI workflow. Authenticates via GitHub OIDC, optionally uploads build artifacts, and kicks off test execution.'
+author: 'Minitap'
+branding:
+  icon: 'play-circle'
+  color: 'purple'
+
+inputs:
+  app-slug:
+    description: 'The Minitest app slug to test'
+    required: true
+  flow-types:
+    description: 'Comma-separated flow types to run (e.g., "login,checkout")'
+    required: false
+  ios-build-path:
+    description: 'Path to the iOS .ipa file to upload'
+    required: false
+  android-build-path:
+    description: 'Path to the Android .apk file to upload'
+    required: false
+  tenant-id:
+    description: 'Tenant ID (required if repo is linked to multiple tenants)'
+    required: false
+  api-url:
+    description: 'Override API base URL'
+    required: false
+    default: 'https://testing-service.app.minitap.ai'
+
+outputs:
+  batch-id:
+    description: 'The ID of the triggered test batch'
+  status:
+    description: 'Initial status of the triggered batch'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
