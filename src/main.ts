@@ -29,6 +29,16 @@ async function run(): Promise<void> {
     const token = await core.getIDToken(OIDC_AUDIENCE)
     core.info('OIDC token obtained successfully')
 
+    // ── Debug: log decoded OIDC claims (not the raw token) ─────────
+    try {
+      const payload = token.split('.')[1]
+      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString())
+      core.info('OIDC token claims:')
+      core.info(JSON.stringify(claims, null, 2))
+    } catch {
+      core.warning('Failed to decode OIDC token claims for debug logging')
+    }
+
     // ── Upload builds (if provided) ──────────────────────────────────
     let iosBuildId: string | undefined
     let androidBuildId: string | undefined
