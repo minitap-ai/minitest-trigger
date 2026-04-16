@@ -1,8 +1,9 @@
 # Dependencies
 node_modules/
 
-# Build output (lib is the tsc output, dist is the ncc bundle)
+# Build output (lib is tsc output, dist is ncc bundle — built on release)
 lib/
+dist/
 
 # OS files
 .DS_Store
