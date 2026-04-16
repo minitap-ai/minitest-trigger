@@ -35,7 +35,9 @@ interface UploadBuildOptions {
 }
 
 /**
- * Upload a build artifact (iOS .ipa or Android .apk) to the Minitap API.
+ * Upload a build artifact to the Minitap API.
+ *
+ * Accepts iOS simulator builds (.app.zip) or Android emulator builds (.apk).
  */
 export async function uploadBuild(
   options: UploadBuildOptions,

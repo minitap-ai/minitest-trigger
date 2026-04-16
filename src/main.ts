@@ -1,5 +1,10 @@
 import * as core from '@actions/core'
 import { uploadBuild, triggerRun } from './api'
+import {
+  validateAtLeastOneBuild,
+  validateAndroidBuild,
+  validateIosBuild,
+} from './validate'
 
 async function run(): Promise<void> {
   try {
@@ -18,6 +23,21 @@ async function run(): Promise<void> {
           .filter(Boolean)
       : undefined
 
+    // ── Validate builds ──────────────────────────────────────────────
+    validateAtLeastOneBuild(iosBuildPath, androidBuildPath)
+
+    let iosUploadPath: string | undefined
+    if (iosBuildPath) {
+      core.info('Validating iOS build...')
+      iosUploadPath = validateIosBuild(iosBuildPath)
+    }
+
+    let androidUploadPath: string | undefined
+    if (androidBuildPath) {
+      core.info('Validating Android build...')
+      androidUploadPath = validateAndroidBuild(androidBuildPath)
+    }
+
     // ── Obtain OIDC token ────────────────────────────────────────────
     core.info(`Requesting GitHub OIDC token with audience: ${apiUrl}`)
     const token = await core.getIDToken(apiUrl)
@@ -33,27 +53,27 @@ async function run(): Promise<void> {
       core.warning('Failed to decode OIDC token claims for debug logging')
     }
 
-    // ── Upload builds (if provided) ──────────────────────────────────
+    // ── Upload builds ────────────────────────────────────────────────
     let iosBuildId: string | undefined
     let androidBuildId: string | undefined
 
-    if (iosBuildPath) {
-      core.info(`Uploading iOS build from: ${iosBuildPath}`)
+    if (iosUploadPath) {
+      core.info(`Uploading iOS build from: ${iosUploadPath}`)
       iosBuildId = await uploadBuild({
         apiUrl,
         token,
-        buildPath: iosBuildPath,
+        buildPath: iosUploadPath,
         appSlug,
         tenantId: tenantId || undefined,
       })
     }
 
-    if (androidBuildPath) {
-      core.info(`Uploading Android build from: ${androidBuildPath}`)
+    if (androidUploadPath) {
+      core.info(`Uploading Android build from: ${androidUploadPath}`)
       androidBuildId = await uploadBuild({
         apiUrl,
         token,
-        buildPath: androidBuildPath,
+        buildPath: androidUploadPath,
         appSlug,
         tenantId: tenantId || undefined,
       })
