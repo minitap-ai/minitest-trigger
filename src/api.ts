@@ -5,6 +5,47 @@ import { HttpClient } from '@actions/http-client'
 
 const client = new HttpClient('minitap-trigger-action')
 
+/** Standard error envelope returned by the Minitap API. */
+interface ApiError {
+  error: string
+  message: string
+  details?: {
+    errors?: Array<{ field: string; message: string; type: string }>
+  }
+}
+
+/**
+ * Parse an API error response into a user-friendly message.
+ *
+ * The Minitap API returns errors in a standard envelope:
+ *   { error: "not_found", message: "App with slug 'x' not found ...", details?: {...} }
+ *
+ * For validation errors (422), individual field errors are included in `details.errors`.
+ */
+function formatApiError(
+  context: string,
+  statusCode: number,
+  body: string,
+): string {
+  try {
+    const data = JSON.parse(body) as ApiError
+    let msg = `${context}: ${data.message} (${data.error})`
+
+    // Append field-level validation errors if present
+    if (data.details?.errors?.length) {
+      const fieldErrors = data.details.errors
+        .map((e) => `  • ${e.field}: ${e.message}`)
+        .join('\n')
+      msg += `\n${fieldErrors}`
+    }
+
+    return msg
+  } catch {
+    // Response wasn't JSON — fall back to raw body
+    return `${context} (HTTP ${statusCode}): ${body}`
+  }
+}
+
 interface UploadResponse {
   buildId: string
   platform: 'ios' | 'android'
@@ -13,6 +54,7 @@ interface UploadResponse {
 
 interface TriggerRunRequest {
   appSlug: string
+  commitTitle: string
   flowTypes?: string[]
   iosBuildId?: string
   androidBuildId?: string
@@ -31,6 +73,7 @@ interface UploadBuildOptions {
   token: string
   buildPath: string
   appSlug: string
+  commitTitle: string
   tenantId?: string
 }
 
@@ -42,7 +85,7 @@ interface UploadBuildOptions {
 export async function uploadBuild(
   options: UploadBuildOptions,
 ): Promise<string> {
-  const { apiUrl, token, buildPath, appSlug, tenantId } = options
+  const { apiUrl, token, buildPath, appSlug, commitTitle, tenantId } = options
   const absolutePath = path.resolve(buildPath)
 
   if (!fs.existsSync(absolutePath)) {
@@ -60,6 +103,14 @@ export async function uploadBuild(
   parts.push(
     Buffer.from(
       `--${boundary}\r\nContent-Disposition: form-data; name="app_slug"\r\n\r\n${appSlug}\r\n`,
+      'utf-8',
+    ),
+  )
+
+  // commit_title field (required)
+  parts.push(
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="commit_title"\r\n\r\n${commitTitle}\r\n`,
       'utf-8',
     ),
   )
@@ -99,12 +150,14 @@ export async function uploadBuild(
 
   const statusCode = response.message.statusCode ?? 0
 
+  const responseBody = await response.readBody()
+
   if (statusCode < 200 || statusCode >= 300) {
-    const responseBody = await response.readBody()
-    throw new Error(`Build upload failed (HTTP ${statusCode}): ${responseBody}`)
+    throw new Error(
+      formatApiError('Build upload failed', statusCode, responseBody),
+    )
   }
 
-  const responseBody = await response.readBody()
   const data = JSON.parse(responseBody) as UploadResponse
 
   core.info(`Upload successful — build ID: ${data.buildId} (${data.platform})`)
@@ -132,13 +185,14 @@ export async function triggerRun(
   })
 
   const statusCode = response.message.statusCode ?? 0
+  const responseBody = await response.readBody()
 
   if (statusCode < 200 || statusCode >= 300) {
-    const responseBody = await response.readBody()
-    throw new Error(`Trigger run failed (HTTP ${statusCode}): ${responseBody}`)
+    throw new Error(
+      formatApiError('Trigger run failed', statusCode, responseBody),
+    )
   }
 
-  const responseBody = await response.readBody()
   const data = JSON.parse(responseBody) as TriggerRunResponse
 
   return data
