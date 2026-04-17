@@ -1,3 +1,5 @@
+import * as fs from 'fs'
+import * as path from 'path'
 import * as core from '@actions/core'
 import { uploadBuild, triggerRun } from './api'
 import {
@@ -27,6 +29,9 @@ async function run(): Promise<void> {
     validateAtLeastOneBuild(iosBuildPath, androidBuildPath)
 
     let iosUploadPath: string | undefined
+    const resolvedIosBuildPath = iosBuildPath
+      ? path.resolve(iosBuildPath)
+      : undefined
     if (iosBuildPath) {
       core.info('Validating iOS build...')
       iosUploadPath = validateIosBuild(iosBuildPath)
@@ -59,13 +64,21 @@ async function run(): Promise<void> {
 
     if (iosUploadPath) {
       core.info(`Uploading iOS build from: ${iosUploadPath}`)
-      iosBuildId = await uploadBuild({
-        apiUrl,
-        token,
-        buildPath: iosUploadPath,
-        appSlug,
-        tenantId: tenantId || undefined,
-      })
+      try {
+        iosBuildId = await uploadBuild({
+          apiUrl,
+          token,
+          buildPath: iosUploadPath,
+          appSlug,
+          tenantId: tenantId || undefined,
+        })
+      } finally {
+        // Clean up temp .ipa if we packaged a .app bundle
+        if (iosUploadPath !== resolvedIosBuildPath) {
+          fs.rmSync(iosUploadPath, { force: true })
+          core.info('Cleaned up temporary .ipa file')
+        }
+      }
     }
 
     if (androidUploadPath) {
