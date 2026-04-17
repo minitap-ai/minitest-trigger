@@ -84,10 +84,21 @@ xcodebuild build \
 
 Provide a **`.apk`** file built for **x86-64** emulators. The action inspects the APK and verifies it contains native libraries for the `x86_64` architecture (`lib/x86_64/`).
 
-To build an x86-64 debug APK with Gradle:
+To build an x86-64 debug APK with Gradle, configure your app's `build.gradle`:
+
+```groovy
+// app/build.gradle
+android {
+  defaultConfig {
+    ndk { abiFilters 'x86_64' }
+  }
+}
+```
+
+Then build:
 
 ```bash
-./gradlew assembleDebug -Parch=x86_64
+./gradlew assembleDebug
 # Output: app/build/outputs/apk/debug/app-debug.apk
 ```
 
