@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as core from '@actions/core'
 import { uploadBuild, triggerRun } from './api'
+import { getCommitTitle } from './commit-title'
 import {
   validateAtLeastOneBuild,
   validateAndroidBuild,
@@ -24,6 +25,9 @@ async function run(): Promise<void> {
           .map((t) => t.trim())
           .filter(Boolean)
       : undefined
+
+    // ── Resolve commit title ────────────────────────────────────────
+    const commitTitle = getCommitTitle()
 
     // ── Validate builds ──────────────────────────────────────────────
     validateAtLeastOneBuild(iosBuildPath, androidBuildPath)
@@ -70,6 +74,7 @@ async function run(): Promise<void> {
           token,
           buildPath: iosUploadPath,
           appSlug,
+          commitTitle,
           tenantId: tenantId || undefined,
         })
       } finally {
@@ -88,6 +93,7 @@ async function run(): Promise<void> {
         token,
         buildPath: androidUploadPath,
         appSlug,
+        commitTitle,
         tenantId: tenantId || undefined,
       })
     }
@@ -95,6 +101,7 @@ async function run(): Promise<void> {
     // ── Trigger test run ─────────────────────────────────────────────
     const result = await triggerRun(apiUrl, token, {
       appSlug,
+      commitTitle,
       flowTypes,
       iosBuildId,
       androidBuildId,

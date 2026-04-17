@@ -18,6 +18,9 @@ inputs:
   android-build-path:
     description: 'Path to the Android emulator build (.apk, must target x86-64)'
     required: false
+  commit-title:
+    description: 'Commit title (first line of the commit message). Auto-detected from the GitHub event payload if not provided.'
+    required: false
   tenant-id:
     description: 'Tenant ID (required if repo is linked to multiple tenants)'
     required: false
