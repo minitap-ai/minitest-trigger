@@ -62,6 +62,14 @@ async function run(): Promise<void> {
       core.warning('Failed to decode OIDC token claims for debug logging')
     }
 
+    // ── Resolve commit SHA ──────────────────────────────────────────
+    const commitSha = process.env.GITHUB_SHA
+    if (!commitSha) {
+      throw new Error(
+        'GITHUB_SHA environment variable is not set — are you running inside GitHub Actions?',
+      )
+    }
+
     // ── Upload builds ────────────────────────────────────────────────
     let iosBuildId: string | undefined
     let androidBuildId: string | undefined
@@ -75,6 +83,7 @@ async function run(): Promise<void> {
           buildPath: iosUploadPath,
           appSlug,
           commitTitle,
+          commitSha,
           tenantId: tenantId || undefined,
         })
       } finally {
@@ -94,6 +103,7 @@ async function run(): Promise<void> {
         buildPath: androidUploadPath,
         appSlug,
         commitTitle,
+        commitSha,
         tenantId: tenantId || undefined,
       })
     }

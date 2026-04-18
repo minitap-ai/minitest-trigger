@@ -1,6 +1,7 @@
 import * as core from '@actions/core'
 import * as fs from 'fs'
 import * as path from 'path'
+import { Readable } from 'stream'
 import { HttpClient } from '@actions/http-client'
 
 const client = new HttpClient('minitap-trigger-action')
@@ -74,6 +75,7 @@ interface UploadBuildOptions {
   buildPath: string
   appSlug: string
   commitTitle: string
+  commitSha: string
   tenantId?: string
 }
 
@@ -85,14 +87,23 @@ interface UploadBuildOptions {
 export async function uploadBuild(
   options: UploadBuildOptions,
 ): Promise<string> {
-  const { apiUrl, token, buildPath, appSlug, commitTitle, tenantId } = options
+  const {
+    apiUrl,
+    token,
+    buildPath,
+    appSlug,
+    commitTitle,
+    commitSha,
+    tenantId,
+  } = options
   const absolutePath = path.resolve(buildPath)
 
   if (!fs.existsSync(absolutePath)) {
     throw new Error(`Build file not found: ${absolutePath}`)
   }
 
-  const fileName = path.basename(absolutePath)
+  const ext = path.extname(absolutePath)
+  const fileName = `commit-${commitSha}${ext}`
   const fileBuffer = fs.readFileSync(absolutePath)
   const boundary = `----FormBoundary${Date.now()}`
 
@@ -142,7 +153,8 @@ export async function uploadBuild(
     `Uploading ${fileName} (${formatBytes(fileBuffer.length)}) to ${url}`,
   )
 
-  const response = await client.request('POST', url, body.toString('binary'), {
+  const stream = Readable.from(body)
+  const response = await client.request('POST', url, stream, {
     Authorization: `Bearer ${token}`,
     'Content-Type': `multipart/form-data; boundary=${boundary}`,
     'Content-Length': body.length.toString(),
