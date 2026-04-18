@@ -52,21 +52,16 @@ async function run(): Promise<void> {
     const token = await core.getIDToken(apiUrl)
     core.info('OIDC token obtained successfully')
 
-    // ── Debug: log decoded OIDC claims (not the raw token) ─────────
-    try {
-      const payload = token.split('.')[1]
-      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString())
-      core.info('OIDC token claims:')
-      core.info(JSON.stringify(claims, null, 2))
-    } catch {
-      core.warning('Failed to decode OIDC token claims for debug logging')
-    }
+    // ── Decode OIDC claims & extract commit SHA ────────────────────
+    const payload = token.split('.')[1]
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString())
+    core.info('OIDC token claims:')
+    core.info(JSON.stringify(claims, null, 2))
 
-    // ── Resolve commit SHA ──────────────────────────────────────────
-    const commitSha = process.env.GITHUB_SHA
+    const commitSha = claims.sha as string | undefined
     if (!commitSha) {
       throw new Error(
-        'GITHUB_SHA environment variable is not set — are you running inside GitHub Actions?',
+        'OIDC token is missing the "sha" claim — cannot determine commit SHA',
       )
     }
 
