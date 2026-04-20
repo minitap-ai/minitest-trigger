@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as core from '@actions/core'
 import { uploadBuild, triggerRun } from './api'
+import { getCiMetadata } from './ci-metadata'
 import { getCommitTitle } from './commit-title'
 import {
   validateAtLeastOneBuild,
@@ -28,6 +29,9 @@ async function run(): Promise<void> {
 
     // ── Resolve commit title ────────────────────────────────────────
     const commitTitle = getCommitTitle()
+
+    // ── Resolve CI metadata (PR / release info) ─────────────────────
+    const ciMetadata = getCiMetadata()
 
     // ── Validate builds ──────────────────────────────────────────────
     validateAtLeastOneBuild(iosBuildPath, androidBuildPath)
@@ -111,6 +115,8 @@ async function run(): Promise<void> {
       iosBuildId,
       androidBuildId,
       tenantId: tenantId || undefined,
+      prNumber: ciMetadata.prNumber,
+      prTitle: ciMetadata.prTitle,
     })
 
     // ── Output results ───────────────────────────────────────────────
