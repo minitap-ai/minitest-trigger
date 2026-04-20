@@ -60,6 +60,8 @@ interface TriggerRunRequest {
   iosBuildId?: string
   androidBuildId?: string
   tenantId?: string
+  prNumber?: number
+  prTitle?: string
 }
 
 interface TriggerRunResponse {
