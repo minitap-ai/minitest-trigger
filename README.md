@@ -35,11 +35,13 @@ jobs:
 | `app-slug`           | Yes      | —                                        | The Minitest app slug to test                                     |
 | `ios-build-path`     | \*       | —                                        | Path to the iOS simulator build (`.app` directory or `.ipa` file) |
 | `android-build-path` | \*       | —                                        | Path to the Android emulator build (`.apk`, must target x86-64)   |
-| `flow-types`         | No       | —                                        | Comma-separated flow types to run (e.g., `login,checkout`)        |
+| `flow-types`         | No       | —                                        | Comma-separated user story types to run (e.g., `login,checkout`). Sent to the API as `userStoryTypes`. |
 | `tenant-id`          | No       | —                                        | Tenant ID (required if repo is linked to multiple tenants)        |
 | `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                             |
 
 > **\*** At least one of `ios-build-path` or `android-build-path` is required.
+
+> **Note:** The Minitap API has renamed `flowTypes` to `userStoryTypes`. This action preserves the `flow-types` YAML input key for backward compatibility with existing workflows, but internally it maps to the new `userStoryTypes` field on the API.
 
 ## Outputs
 
@@ -124,7 +126,7 @@ Then build:
     android-build-path: ./app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### Both platforms with specific flow types
+### Both platforms with specific user story types
 
 ```yaml
 - uses: minitap-ai/minitest-trigger@v1

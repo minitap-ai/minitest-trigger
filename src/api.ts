@@ -56,7 +56,7 @@ interface UploadResponse {
 interface TriggerRunRequest {
   appSlug: string
   commitTitle: string
-  flowTypes?: string[]
+  userStoryTypes?: string[]
   iosBuildId?: string
   androidBuildId?: string
   tenantId?: string

@@ -14,14 +14,14 @@ async function run(): Promise<void> {
   try {
     // ── Read inputs ──────────────────────────────────────────────────
     const appSlug = core.getInput('app-slug', { required: true })
-    const flowTypesRaw = core.getInput('flow-types')
+    const userStoryTypesRaw = core.getInput('flow-types')
     const iosBuildPath = core.getInput('ios-build-path')
     const androidBuildPath = core.getInput('android-build-path')
     const tenantId = core.getInput('tenant-id')
     const apiUrl = core.getInput('api-url')
 
-    const flowTypes = flowTypesRaw
-      ? flowTypesRaw
+    const userStoryTypes = userStoryTypesRaw
+      ? userStoryTypesRaw
           .split(',')
           .map((t) => t.trim())
           .filter(Boolean)
@@ -111,7 +111,7 @@ async function run(): Promise<void> {
     const result = await triggerRun(apiUrl, token, {
       appSlug,
       commitTitle,
-      flowTypes,
+      userStoryTypes,
       iosBuildId,
       androidBuildId,
       tenantId: tenantId || undefined,

@@ -10,7 +10,7 @@ inputs:
     description: 'The Minitest app slug to test'
     required: true
   flow-types:
-    description: 'Comma-separated flow types to run (e.g., "login,checkout")'
+    description: 'Comma-separated user story types to run (e.g., "login,checkout"). Sent to the API as userStoryTypes.'
     required: false
   ios-build-path:
     description: 'Path to the iOS simulator build (.app directory or .ipa file)'
