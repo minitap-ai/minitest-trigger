@@ -16,7 +16,7 @@ Public GitHub Action (`minitap-ai/minitest-trigger`) that triggers Minitap test 
 The action talks to the Minitap testing-service (see `../testing-service` for the server):
 
 - `POST /api/v1/ci/builds/upload` — multipart form: `file`, `app_slug`, `tenant_id` (optional). Returns `{ buildId, platform, appId }`
-- `POST /api/v1/ci/run` — JSON: `{ appSlug, flowTypes?, iosBuildId?, androidBuildId?, tenantId? }`. Returns `{ batchId, status, appId, appSlug }`
+- `POST /api/v1/ci/run` — JSON: `{ appSlug, userStoryTypes?, iosBuildId?, androidBuildId?, tenantId? }`. Returns `{ batchId, status, appId, appSlug }`
 - Auth: `Authorization: Bearer <oidc-token>` with audience `https://testing-service.minitap.ai`
 - Commit SHA comes from the OIDC token's `sha` claim — never sent in the request body
 
