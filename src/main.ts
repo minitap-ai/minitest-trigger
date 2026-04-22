@@ -14,7 +14,7 @@ async function run(): Promise<void> {
   try {
     // ── Read inputs ──────────────────────────────────────────────────
     const appSlug = core.getInput('app-slug', { required: true })
-    const userStoryTypesRaw = core.getInput('flow-types')
+    const userStoryTypesRaw = core.getInput('user-story-types')
     const iosBuildPath = core.getInput('ios-build-path')
     const androidBuildPath = core.getInput('android-build-path')
     const tenantId = core.getInput('tenant-id')

@@ -35,13 +35,11 @@ jobs:
 | `app-slug`           | Yes      | —                                        | The Minitest app slug to test                                     |
 | `ios-build-path`     | \*       | —                                        | Path to the iOS simulator build (`.app` directory or `.ipa` file) |
 | `android-build-path` | \*       | —                                        | Path to the Android emulator build (`.apk`, must target x86-64)   |
-| `flow-types`         | No       | —                                        | Comma-separated user story types to run (e.g., `login,checkout`). Sent to the API as `userStoryTypes`. |
+| `user-story-types`   | No       | —                                        | Comma-separated user story types to run (e.g., `login,checkout`)  |
 | `tenant-id`          | No       | —                                        | Tenant ID (required if repo is linked to multiple tenants)        |
 | `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                             |
 
 > **\*** At least one of `ios-build-path` or `android-build-path` is required.
-
-> **Note:** The Minitap API has renamed `flowTypes` to `userStoryTypes`. This action preserves the `flow-types` YAML input key for backward compatibility with existing workflows, but internally it maps to the new `userStoryTypes` field on the API.
 
 ## Outputs
 
@@ -134,7 +132,7 @@ Then build:
     app-slug: my-app
     ios-build-path: ./build/MyApp.ipa
     android-build-path: ./build/app-debug.apk
-    flow-types: login,checkout,onboarding
+    user-story-types: login,checkout,onboarding
 ```
 
 ### Multi-tenant setup
