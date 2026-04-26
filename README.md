@@ -30,16 +30,18 @@ jobs:
 
 ## Inputs
 
-| Input                | Required | Default                                  | Description                                                       |
-| -------------------- | -------- | ---------------------------------------- | ----------------------------------------------------------------- |
-| `app-slug`           | Yes      | —                                        | The Minitest app slug to test                                     |
-| `ios-build-path`     | \*       | —                                        | Path to the iOS simulator build (`.app` directory or `.ipa` file) |
-| `android-build-path` | \*       | —                                        | Path to the Android emulator build (`.apk`, must target x86-64)   |
-| `user-story-types`   | No       | —                                        | Comma-separated user story types to run (e.g., `login,checkout`)  |
-| `tenant-id`          | No       | —                                        | Tenant ID (required if repo is linked to multiple tenants)        |
-| `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                             |
+| Input                | Required | Default                                  | Description                                                                  |
+| -------------------- | -------- | ---------------------------------------- | ---------------------------------------------------------------------------- |
+| `app-slug`           | Yes      | —                                        | The Minitest app slug to test                                                |
+| `run-ios`            | No       | `true`                                   | Run tests on iOS. Minitest builds the app when no `ios-build-path` is given. |
+| `run-android`        | No       | `true`                                   | Run tests on Android. Minitest builds the app when no path is given.         |
+| `ios-build-path`     | No       | —                                        | Pre-built iOS bundle (`.app` directory or `.ipa` file). Optional.            |
+| `android-build-path` | No       | —                                        | Pre-built Android `.apk` (must target x86-64). Optional.                     |
+| `user-story-types`   | No       | —                                        | Comma-separated user story types to run (e.g., `login,checkout`)             |
+| `tenant-id`          | No       | —                                        | Tenant ID (required if repo is linked to multiple tenants)                   |
+| `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                                        |
 
-> **\*** At least one of `ios-build-path` or `android-build-path` is required.
+> By default, Minitest builds your app for both platforms. Set `run-ios: false` or `run-android: false` to skip a platform, or supply a `*-build-path` to use a build you've already produced.
 
 ## Outputs
 
@@ -50,15 +52,15 @@ jobs:
 
 ## How It Works
 
-1. **Validate Builds** — Checks that your build artifacts meet the requirements (see below)
-2. **OIDC Authentication** — Requests a GitHub OIDC token scoped to the Minitap API. No secrets to manage!
-3. **Upload Builds** — Uploads your simulator/emulator builds to Minitap (`.app` bundles are automatically packaged into `.ipa`)
-4. **Trigger Run** — Calls the Minitap CI API with your configuration
-5. **Fire & Forget** — The action exits immediately. Results are reported back via GitHub Check Runs
+1. **OIDC Authentication** — Requests a GitHub OIDC token scoped to the Minitap API. No secrets to manage!
+2. **Validate Builds** — If you supplied any build paths, the action validates the artifacts (see below).
+3. **Upload Builds** — Uploads your supplied builds to Minitap (`.app` bundles are automatically packaged into `.ipa`).
+4. **Trigger Run** — Calls the Minitap CI API. For any enabled platform without a supplied build, Minitest builds the app for this commit on your behalf.
+5. **Fire & Forget** — The action exits immediately. Results are reported back via GitHub Check Runs.
 
 ## Build Requirements
 
-You must provide at least one build artifact. Minitap runs your app on simulators and emulators, so builds must target those environments.
+By default, Minitest builds your app for both platforms — you don't need to supply anything beyond `app-slug`. Provide a build path only when you want to use an artifact you've already produced (e.g., to skip a redundant build step in your workflow). Builds you supply must target simulators / emulators.
 
 ### iOS
 
@@ -106,7 +108,34 @@ Then build:
 
 ## Examples
 
+### Default — Minitest builds for both platforms
+
+```yaml
+- uses: minitap-ai/minitest-trigger@v1
+  with:
+    app-slug: my-app
+```
+
 ### iOS only
+
+```yaml
+- uses: minitap-ai/minitest-trigger@v1
+  with:
+    app-slug: my-app
+    run-android: false
+```
+
+### Android only, with your own build
+
+```yaml
+- uses: minitap-ai/minitest-trigger@v1
+  with:
+    app-slug: my-app
+    run-ios: false
+    android-build-path: ./app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Bring your own iOS build, let Minitest build Android
 
 ```yaml
 - uses: minitap-ai/minitest-trigger@v1
@@ -115,23 +144,12 @@ Then build:
     ios-build-path: ./build/Build/Products/Debug-iphonesimulator/MyApp.app
 ```
 
-### Android only
-
-```yaml
-- uses: minitap-ai/minitest-trigger@v1
-  with:
-    app-slug: my-app
-    android-build-path: ./app/build/outputs/apk/debug/app-debug.apk
-```
-
 ### Both platforms with specific user story types
 
 ```yaml
 - uses: minitap-ai/minitest-trigger@v1
   with:
     app-slug: my-app
-    ios-build-path: ./build/MyApp.ipa
-    android-build-path: ./build/app-debug.apk
     user-story-types: login,checkout,onboarding
 ```
 
@@ -141,7 +159,6 @@ Then build:
 - uses: minitap-ai/minitest-trigger@v1
   with:
     app-slug: my-app
-    android-build-path: ./build/app-debug.apk
     tenant-id: tenant_abc123
 ```
 

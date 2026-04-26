@@ -5,17 +5,39 @@ import * as path from 'path'
 import { execFileSync } from 'child_process'
 
 /**
- * Ensure at least one build path (iOS or Android) was provided.
+ * Validate the run-flags / build-path input combination.
+ *
+ * Rules:
+ *  1. At least one of `run-ios` / `run-android` must be true.
+ *  2. A build path can only be supplied for a platform that is enabled —
+ *     otherwise the artifact would be uploaded but never tested.
  */
-export function validateAtLeastOneBuild(
-  iosBuildPath: string,
-  androidBuildPath: string,
-): void {
-  if (!iosBuildPath && !androidBuildPath) {
+export function validateRunFlags(opts: {
+  runIos: boolean
+  runAndroid: boolean
+  iosBuildPath: string
+  androidBuildPath: string
+}): void {
+  const { runIos, runAndroid, iosBuildPath, androidBuildPath } = opts
+
+  if (!runIos && !runAndroid) {
     throw new Error(
-      'At least one build is required: provide "ios-build-path" and/or "android-build-path".\n' +
-        'iOS builds must be a .app simulator bundle (directory) or a .ipa file.\n' +
-        'Android builds must be a .apk file built for x86-64 emulators.',
+      'Nothing to run: both `run-ios` and `run-android` are false.\n' +
+        '  Enable at least one platform.',
+    )
+  }
+
+  if (!runIos && iosBuildPath) {
+    throw new Error(
+      '`ios-build-path` was provided but `run-ios` is false.\n' +
+        '  Either set `run-ios: true` or remove `ios-build-path`.',
+    )
+  }
+
+  if (!runAndroid && androidBuildPath) {
+    throw new Error(
+      '`android-build-path` was provided but `run-android` is false.\n' +
+        '  Either set `run-android: true` or remove `android-build-path`.',
     )
   }
 }

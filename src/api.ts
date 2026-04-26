@@ -53,10 +53,13 @@ interface UploadResponse {
   appId: string
 }
 
+export type Platform = 'ios' | 'android'
+
 interface TriggerRunRequest {
   appSlug: string
   commitTitle: string
   userStoryTypes?: string[]
+  platforms?: Platform[]
   iosBuildId?: string
   androidBuildId?: string
   tenantId?: string
