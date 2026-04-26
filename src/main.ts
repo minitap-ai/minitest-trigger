@@ -1,11 +1,11 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as core from '@actions/core'
-import { uploadBuild, triggerRun } from './api'
+import { uploadBuild, triggerRun, type Platform } from './api'
 import { getCiMetadata } from './ci-metadata'
 import { getCommitTitle } from './commit-title'
 import {
-  validateAtLeastOneBuild,
+  validateRunFlags,
   validateAndroidBuild,
   validateIosBuild,
 } from './validate'
@@ -15,6 +15,8 @@ async function run(): Promise<void> {
     // ── Read inputs ──────────────────────────────────────────────────
     const appSlug = core.getInput('app-slug', { required: true })
     const userStoryTypesRaw = core.getInput('user-story-types')
+    const runIos = core.getBooleanInput('run-ios')
+    const runAndroid = core.getBooleanInput('run-android')
     const iosBuildPath = core.getInput('ios-build-path')
     const androidBuildPath = core.getInput('android-build-path')
     const tenantId = core.getInput('tenant-id')
@@ -27,14 +29,24 @@ async function run(): Promise<void> {
           .filter(Boolean)
       : undefined
 
+    // Build the platforms array forwarded to the server. Only sent when the
+    // user opts out of one platform — when both are enabled (the default),
+    // we omit the field so the server's "both" default applies.
+    const platforms: Platform[] | undefined =
+      runIos && runAndroid
+        ? undefined
+        : ([runIos && 'ios', runAndroid && 'android'].filter(
+            Boolean,
+          ) as Platform[])
+
     // ── Resolve commit title ────────────────────────────────────────
     const commitTitle = getCommitTitle()
 
     // ── Resolve CI metadata (PR / release info) ─────────────────────
     const ciMetadata = getCiMetadata()
 
-    // ── Validate builds ──────────────────────────────────────────────
-    validateAtLeastOneBuild(iosBuildPath, androidBuildPath)
+    // ── Validate run-flag / build-path combination ───────────────────
+    validateRunFlags({ runIos, runAndroid, iosBuildPath, androidBuildPath })
 
     let iosUploadPath: string | undefined
     const resolvedIosBuildPath = iosBuildPath
@@ -43,12 +55,20 @@ async function run(): Promise<void> {
     if (iosBuildPath) {
       core.info('Validating iOS build...')
       iosUploadPath = validateIosBuild(iosBuildPath)
+    } else if (runIos) {
+      core.info(
+        'No `ios-build-path` provided — Minitest will build the iOS app for this commit',
+      )
     }
 
     let androidUploadPath: string | undefined
     if (androidBuildPath) {
       core.info('Validating Android build...')
       androidUploadPath = validateAndroidBuild(androidBuildPath)
+    } else if (runAndroid) {
+      core.info(
+        'No `android-build-path` provided — Minitest will build the Android app for this commit',
+      )
     }
 
     // ── Obtain OIDC token ────────────────────────────────────────────
@@ -112,6 +132,7 @@ async function run(): Promise<void> {
       appSlug,
       commitTitle,
       userStoryTypes,
+      platforms,
       iosBuildId,
       androidBuildId,
       tenantId: tenantId || undefined,

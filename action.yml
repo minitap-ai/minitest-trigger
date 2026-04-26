@@ -12,11 +12,19 @@ inputs:
   user-story-types:
     description: 'Comma-separated user story types to run (e.g., "login,checkout").'
     required: false
+  run-ios:
+    description: 'Run tests on iOS. When true and no `ios-build-path` is provided, Minitest builds the app for you. Defaults to true.'
+    required: false
+    default: 'true'
+  run-android:
+    description: 'Run tests on Android. When true and no `android-build-path` is provided, Minitest builds the app for you. Defaults to true.'
+    required: false
+    default: 'true'
   ios-build-path:
-    description: 'Path to the iOS simulator build (.app directory or .ipa file)'
+    description: 'Optional path to a pre-built iOS simulator build (.app directory or .ipa file). When omitted with `run-ios: true`, Minitest builds the app.'
     required: false
   android-build-path:
-    description: 'Path to the Android emulator build (.apk, must target x86-64)'
+    description: 'Optional path to a pre-built Android emulator build (.apk, must target x86-64). When omitted with `run-android: true`, Minitest builds the app.'
     required: false
   commit-title:
     description: 'Commit title (first line of the commit message). Auto-detected from the GitHub event payload if not provided.'
