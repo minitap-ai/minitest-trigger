@@ -58,6 +58,13 @@ export type Platform = 'ios' | 'android'
 interface TriggerRunRequest {
   appSlug: string
   commitTitle: string
+  /**
+   * Optional commit SHA override. Honoured by the server only for
+   * pull_request / pull_request_target events, where the OIDC `sha` claim
+   * refers to the merge-commit and not the PR head. When omitted, the
+   * server falls back to the OIDC `sha` claim.
+   */
+  commitSha?: string
   userStoryTypes?: string[]
   platforms?: Platform[]
   iosBuildId?: string
@@ -127,6 +134,14 @@ export async function uploadBuild(
   parts.push(
     Buffer.from(
       `--${boundary}\r\nContent-Disposition: form-data; name="commit_title"\r\n\r\n${commitTitle}\r\n`,
+      'utf-8',
+    ),
+  )
+
+  // commit_sha field (optional override; honoured by the server only on PR events)
+  parts.push(
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="commit_sha"\r\n\r\n${commitSha}\r\n`,
       'utf-8',
     ),
   )
