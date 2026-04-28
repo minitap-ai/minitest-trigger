@@ -15,10 +15,10 @@ Public GitHub Action (`minitap-ai/minitest-trigger`) that triggers Minitap test 
 
 The action talks to the Minitap testing-service (see `../testing-service` for the server):
 
-- `POST /api/v1/ci/builds/upload` — multipart form: `file`, `app_slug`, `tenant_id` (optional). Returns `{ buildId, platform, appId }`
-- `POST /api/v1/ci/run` — JSON: `{ appSlug, userStoryTypes?, iosBuildId?, androidBuildId?, tenantId? }`. Returns `{ batchId, status, appId, appSlug }`
+- `POST /api/v1/ci/builds/upload` — multipart form: `file`, `app_slug`, `commit_title`, `commit_sha` (optional override), `tenant_id` (optional). Returns `{ buildId, platform, appId }`
+- `POST /api/v1/ci/run` — JSON: `{ appSlug, commitTitle, commitSha?, userStoryTypes?, iosBuildId?, androidBuildId?, tenantId?, prNumber?, prTitle? }`. Returns `{ batchId, status, appId, appSlug }`
 - Auth: `Authorization: Bearer <oidc-token>` with audience `https://testing-service.minitap.ai`
-- Commit SHA comes from the OIDC token's `sha` claim — never sent in the request body
+- Commit SHA: the server defaults to the OIDC `sha` claim. For `pull_request` / `pull_request_target` events the action sends `pull_request.head.sha` (read from `GITHUB_EVENT_PATH`) as a `commit_sha` override, because the OIDC claim points at the ephemeral merge commit and is not addressable from the PR "Checks" tab. The server only honours the override for those PR events; for any other event the override is ignored.
 
 ## Tech Stack
 

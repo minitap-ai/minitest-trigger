@@ -4,6 +4,7 @@ import * as core from '@actions/core'
 import { uploadBuild, triggerRun, type Platform } from './api'
 import { getCiMetadata } from './ci-metadata'
 import { getCommitTitle } from './commit-title'
+import { resolvePrHeadSha } from './commit-sha'
 import {
   validateRunFlags,
   validateAndroidBuild,
@@ -82,10 +83,23 @@ async function run(): Promise<void> {
     core.info('OIDC token claims:')
     core.info(JSON.stringify(claims, null, 2))
 
-    const commitSha = claims.sha as string | undefined
-    if (!commitSha) {
+    const oidcSha = claims.sha as string | undefined
+    if (!oidcSha) {
       throw new Error(
         'OIDC token is missing the "sha" claim — cannot determine commit SHA',
+      )
+    }
+
+    // ── PR-event SHA override ─────────────────────────────────────────
+    // For pull_request / pull_request_target, claims.sha is the ephemeral
+    // test-merge commit and not addressable from the PR Checks tab. Prefer
+    // pull_request.head.sha read from the event payload when available.
+    const eventName = process.env.GITHUB_EVENT_NAME
+    const prHeadSha = resolvePrHeadSha(eventName)
+    const commitSha = prHeadSha ?? oidcSha
+    if (prHeadSha && prHeadSha !== oidcSha) {
+      core.info(
+        `Using PR head SHA ${prHeadSha} from event payload instead of OIDC merge SHA ${oidcSha}`,
       )
     }
 
@@ -131,6 +145,7 @@ async function run(): Promise<void> {
     const result = await triggerRun(apiUrl, token, {
       appSlug,
       commitTitle,
+      commitSha,
       userStoryTypes,
       platforms,
       iosBuildId,
