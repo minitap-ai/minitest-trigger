@@ -40,6 +40,7 @@ jobs:
 | `user-story-types`   | No       | —                                        | Comma-separated user story types to run (e.g., `login,checkout`)             |
 | `tenant-id`          | No       | —                                        | Tenant ID (required if repo is linked to multiple tenants)                   |
 | `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                                        |
+| `cancel-previous-runs` | No     | `true`                                   | Cancel previous in-flight batches on the same source branch when it matches the app's release branch patterns. See [Cancelling previous runs](#cancelling-previous-runs). |
 
 > By default, Minitest builds your app for both platforms. Set `run-ios: false` or `run-android: false` to skip a platform, or supply a `*-build-path` to use a build you've already produced.
 
@@ -161,6 +162,24 @@ Then build:
     app-slug: my-app
     tenant-id: tenant_abc123
 ```
+
+## Cancelling previous runs
+
+When you repeatedly push to the same release branch (e.g., reopening a release PR with a fix), older test batches that are still pending or running pile up. The `cancel-previous-runs` input (enabled by default) tells the server to cancel previous in-flight CI batches for the same source branch.
+
+Cancellation is scoped:
+
+- **Same source branch only** — matched on the PR head branch (`pull_request` events) or the branch ref for `push` / `workflow_dispatch` / `schedule` / `merge_group`.
+- **Release branches only** — the branch must match one of the app's configured `release_branch_patterns` (gitignore-style; configured per app in Minitest).
+- **CI-triggered only** — only batches triggered by this GitHub Action are cancelled. Webapp, Slack, or API-triggered runs are unaffected.
+
+No-ops:
+
+- Tag pushes (`refs/tags/*`).
+- Branches that don't match a configured release pattern.
+- Events where the branch can't be determined (e.g., PR event payload missing).
+
+Opt out with `cancel-previous-runs: false`.
 
 ## Prerequisites
 

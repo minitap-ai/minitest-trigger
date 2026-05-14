@@ -11,6 +11,8 @@ import {
   validateIosBuild,
 } from './validate'
 
+const DEFAULT_API_URL = 'https://testing-service.app.minitap.ai'
+
 async function run(): Promise<void> {
   try {
     // ── Read inputs ──────────────────────────────────────────────────
@@ -22,6 +24,7 @@ async function run(): Promise<void> {
     const androidBuildPath = core.getInput('android-build-path')
     const tenantId = core.getInput('tenant-id')
     const apiUrl = core.getInput('api-url')
+    const cancelPreviousRuns = core.getBooleanInput('cancel-previous-runs')
 
     const userStoryTypes = userStoryTypesRaw
       ? userStoryTypesRaw
@@ -80,8 +83,13 @@ async function run(): Promise<void> {
     // ── Decode OIDC claims & extract commit SHA ────────────────────
     const payload = token.split('.')[1]
     const claims = JSON.parse(Buffer.from(payload, 'base64url').toString())
-    core.info('OIDC token claims:')
-    core.info(JSON.stringify(claims, null, 2))
+    // Only dump the decoded claims when the user is pointing at a non-default
+    // API endpoint (debugging custom deployments). Avoids leaking metadata
+    // (repo, ref, run id, etc.) into logs of regular customer workflows.
+    if (apiUrl !== DEFAULT_API_URL) {
+      core.info('OIDC token claims:')
+      core.info(JSON.stringify(claims, null, 2))
+    }
 
     const oidcSha = claims.sha as string | undefined
     if (!oidcSha) {
@@ -153,6 +161,9 @@ async function run(): Promise<void> {
       tenantId: tenantId || undefined,
       prNumber: ciMetadata.prNumber,
       prTitle: ciMetadata.prTitle,
+      baseRef: ciMetadata.baseRef,
+      headRef: ciMetadata.headRef,
+      cancelPreviousRuns,
     })
 
     // ── Output results ───────────────────────────────────────────────

@@ -72,6 +72,19 @@ interface TriggerRunRequest {
   tenantId?: string
   prNumber?: number
   prTitle?: string
+  /** PR base branch (bare name, e.g. "main"). PR events only. */
+  baseRef?: string
+  /**
+   * Source branch (bare name, e.g. "release/1.2.0"). PR head for PR events,
+   * derived from `GITHUB_REF` for branch pushes / workflow_dispatch.
+   */
+  headRef?: string
+  /**
+   * When true, the server cancels previous in-flight CI batches on the same
+   * `headRef` if it matches the app's `release_branch_patterns`. No-op on
+   * tag events, on non-release branches, or when `headRef` is missing.
+   */
+  cancelPreviousRuns?: boolean
 }
 
 interface TriggerRunResponse {

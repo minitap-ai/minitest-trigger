@@ -36,6 +36,10 @@ inputs:
     description: 'Override API base URL'
     required: false
     default: 'https://testing-service.app.minitap.ai'
+  cancel-previous-runs:
+    description: 'Cancel previous in-flight test batches for the same source branch when it matches the app''s release branch patterns. Has no effect on tag pushes or on branches that don''t match a configured release pattern.'
+    required: false
+    default: 'true'
 
 outputs:
   batch-id:
