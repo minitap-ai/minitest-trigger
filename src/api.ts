@@ -15,42 +15,109 @@ interface ApiError {
   }
 }
 
+/** Single issue produced by the build-compatibility validator (warnings + hard errors). */
+interface BuildValidationIssue {
+  code: string
+  message: string
+  detail?: Record<string, unknown>
+}
+
+/**
+ * Error envelope returned by the build-compatibility validator (422).
+ *
+ * Emitted by the bespoke handler in testing-service `main.py` when the
+ * upload route raises `BuildValidationError`. Shape diverges from the
+ * standard `ApiError` envelope so it gets its own type.
+ */
+interface BuildInvalidError {
+  error_code: 'build_invalid'
+  issues: BuildValidationIssue[]
+}
+
 /**
  * Parse an API error response into a user-friendly message.
  *
- * The Minitap API returns errors in a standard envelope:
- *   { error: "not_found", message: "App with slug 'x' not found ...", details?: {...} }
+ * Two envelopes are handled:
+ *   - Standard:     { error, message, details? }
+ *   - build_invalid:{ error_code: "build_invalid", issues: [...] } — emitted
+ *                   by the build-compatibility validator on upload.
  *
- * For validation errors (422), individual field errors are included in `details.errors`.
+ * For build-validation errors each issue is also emitted as a GitHub
+ * Annotation so it surfaces on the workflow summary, in addition to being
+ * rendered in the thrown Error message.
  */
 function formatApiError(
   context: string,
   statusCode: number,
   body: string,
 ): string {
+  let parsed: unknown
   try {
-    const data = JSON.parse(body) as ApiError
-    let msg = `${context}: ${data.message} (${data.error})`
-
-    // Append field-level validation errors if present
-    if (data.details?.errors?.length) {
-      const fieldErrors = data.details.errors
-        .map((e) => `  • ${e.field}: ${e.message}`)
-        .join('\n')
-      msg += `\n${fieldErrors}`
-    }
-
-    return msg
+    parsed = JSON.parse(body)
   } catch {
     // Response wasn't JSON — fall back to raw body
     return `${context} (HTTP ${statusCode}): ${body}`
   }
+
+  if (isBuildInvalidError(parsed)) {
+    for (const issue of parsed.issues) {
+      core.error(issue.message, { title: issue.code })
+    }
+    const issueLines = parsed.issues
+      .map((i) => `  • ${i.code}: ${i.message}`)
+      .join('\n')
+    return `${context}: build cannot run on virtual devices\n${issueLines}`
+  }
+
+  if (!isApiError(parsed)) {
+    // Unknown shape — preserve the raw JSON so the real failure isn't lost
+    return `${context} (HTTP ${statusCode}): ${JSON.stringify(parsed)}`
+  }
+
+  let msg = `${context}: ${parsed.message} (${parsed.error})`
+
+  // Append field-level validation errors if present
+  if (parsed.details?.errors?.length) {
+    const fieldErrors = parsed.details.errors
+      .map((e) => `  • ${e.field}: ${e.message}`)
+      .join('\n')
+    msg += `\n${fieldErrors}`
+  }
+
+  return msg
+}
+
+function isBuildValidationIssue(value: unknown): value is BuildValidationIssue {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as { code?: unknown; message?: unknown }
+  return (
+    typeof candidate.code === 'string' && typeof candidate.message === 'string'
+  )
+}
+
+function isBuildInvalidError(value: unknown): value is BuildInvalidError {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as { error_code?: unknown; issues?: unknown }
+  return (
+    candidate.error_code === 'build_invalid' &&
+    Array.isArray(candidate.issues) &&
+    candidate.issues.every(isBuildValidationIssue)
+  )
+}
+
+function isApiError(value: unknown): value is ApiError {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as { error?: unknown; message?: unknown }
+  return (
+    typeof candidate.error === 'string' && typeof candidate.message === 'string'
+  )
 }
 
 interface UploadResponse {
   buildId: string
   platform: 'ios' | 'android'
   appId: string
+  validationWarnings?: BuildValidationIssue[] | null
 }
 
 export type Platform = 'ios' | 'android'
@@ -206,6 +273,18 @@ export async function uploadBuild(
   const data = JSON.parse(responseBody) as UploadResponse
 
   core.info(`Upload successful — build ID: ${data.buildId} (${data.platform})`)
+
+  // Surface non-fatal build-compatibility warnings as GitHub Annotations so
+  // they appear on the workflow summary alongside the run results.
+  if (data.validationWarnings?.length) {
+    core.info(
+      `Build uploaded with ${data.validationWarnings.length} compatibility warning(s):`,
+    )
+    for (const warning of data.validationWarnings) {
+      core.warning(warning.message, { title: warning.code })
+      core.info(`  • ${warning.code}: ${warning.message}`)
+    }
+  }
 
   return data.buildId
 }
