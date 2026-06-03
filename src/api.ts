@@ -133,6 +133,8 @@ interface TriggerRunRequest {
    */
   commitSha?: string
   userStoryTypes?: string[]
+  /** Specific user story IDs (UUIDs) to run. Mutually exclusive with `userStoryTypes`. */
+  userStoryIds?: string[]
   platforms?: Platform[]
   iosBuildId?: string
   androidBuildId?: string

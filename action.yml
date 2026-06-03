@@ -10,7 +10,10 @@ inputs:
     description: 'The Minitest app slug to test'
     required: true
   user-story-types:
-    description: 'Comma-separated user story types to run (e.g., "login,checkout").'
+    description: 'Comma-separated user story types to run (e.g., "login,checkout"). Mutually exclusive with `user-stories`.'
+    required: false
+  user-stories:
+    description: 'User story IDs (UUIDs) to run, separated by newlines and/or commas. Mutually exclusive with `user-story-types`.'
     required: false
   run-ios:
     description: 'Run tests on iOS. When true and no `ios-build-path` is provided, Minitest builds the app for you. Defaults to true.'
