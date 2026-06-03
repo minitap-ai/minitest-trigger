@@ -18,6 +18,7 @@ async function run(): Promise<void> {
     // ── Read inputs ──────────────────────────────────────────────────
     const appSlug = core.getInput('app-slug', { required: true })
     const userStoryTypesRaw = core.getInput('user-story-types')
+    const userStoryIdsRaw = core.getInput('user-stories')
     const runIos = core.getBooleanInput('run-ios')
     const runAndroid = core.getBooleanInput('run-android')
     const iosBuildPath = core.getInput('ios-build-path')
@@ -32,6 +33,19 @@ async function run(): Promise<void> {
           .map((t) => t.trim())
           .filter(Boolean)
       : undefined
+
+    const userStoryIds = userStoryIdsRaw
+      ? userStoryIdsRaw
+          .split(/[\n,]/)
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : undefined
+
+    if (userStoryTypes?.length && userStoryIds?.length) {
+      throw new Error(
+        '`user-story-types` and `user-stories` are mutually exclusive — provide only one.',
+      )
+    }
 
     // Build the platforms array forwarded to the server. Only sent when the
     // user opts out of one platform — when both are enabled (the default),
@@ -155,6 +169,7 @@ async function run(): Promise<void> {
       commitTitle,
       commitSha,
       userStoryTypes,
+      userStoryIds,
       platforms,
       iosBuildId,
       androidBuildId,
