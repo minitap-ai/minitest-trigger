@@ -1,22 +1,6 @@
 import type { WebTargetSpec } from './api'
 
-/**
- * Parse the `web-targets` input grammar into structured web target specs.
- *
- * Grammar: comma-separated `<browser>:<viewport>` tokens, e.g.
- *   `chrome:desktop,safari:mobile`
- *
- * Mapping (mobile-web runs on a real device, browser-web in a browser):
- *   - safari:mobile    → iOS Safari        { platform: 'ios',     browser: 'safari' }
- *   - chrome:mobile    → Android Chrome     { platform: 'android', browser: 'chrome' }
- *   - chrome:tablet    → tablet web         { platform: 'web', browser: 'chrome',  viewport: 'tablet' }
- *   - firefox:tablet   → tablet web         { platform: 'web', browser: 'firefox', viewport: 'tablet' }
- *   - chrome:desktop   → desktop web        { platform: 'web', browser: 'chrome',  viewport: 'pc' }
- *   - firefox:desktop  → desktop web        { platform: 'web', browser: 'firefox', viewport: 'pc' }
- *
- * The user-facing `desktop` viewport maps to the server's `pc` enum value.
- * `firefox:mobile` and `safari:desktop` / `safari:tablet` are rejected.
- */
+/** Parse comma-separated `<browser>:<viewport>` web-target tokens into `WebTargetSpec[]`. */
 export function parseWebTargets(raw: string): WebTargetSpec[] {
   const tokens = raw
     .split(',')
