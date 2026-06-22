@@ -51,10 +51,11 @@ async function run(): Promise<void> {
       )
     }
 
-    const webTargets = webTargetsRaw
+    const parsedWebTargets = webTargetsRaw
       ? parseWebTargets(webTargetsRaw)
       : undefined
-    const wantWeb = runWeb || (webTargets?.length ?? 0) > 0
+    const webTargets = parsedWebTargets?.length ? parsedWebTargets : undefined
+    const wantWeb = runWeb || webTargets !== undefined
 
     // Build the platforms array forwarded to the server. Omitted only when
     // both native platforms are enabled and the web lane is off (the default),
@@ -188,8 +189,8 @@ async function run(): Promise<void> {
       platforms,
       iosBuildId,
       androidBuildId,
-      webTargets,
-      webUrl: webUrl || undefined,
+      webTargets: wantWeb ? webTargets : undefined,
+      webUrl: wantWeb ? webUrl.trim() || undefined : undefined,
       tenantId: tenantId || undefined,
       prNumber: ciMetadata.prNumber,
       prTitle: ciMetadata.prTitle,
