@@ -34,7 +34,7 @@ inputs:
     required: false
     default: 'false'
   web-targets:
-    description: 'Explicit web targets as a comma-separated list of `<browser>:<viewport>` (e.g. "chrome:desktop,safari:mobile"). Valid: chrome:desktop, firefox:desktop, chrome:mobile (Android), safari:mobile (iOS). Enables the web lane on its own.'
+    description: 'Explicit web targets as a comma-separated list of `<browser>:<viewport>` (e.g. "chrome:desktop,safari:mobile"). Valid: chrome:desktop, firefox:desktop, chrome:tablet, firefox:tablet, chrome:mobile (Android), safari:mobile (iOS). Enables the web lane on its own.'
     required: false
   web-url:
     description: 'Per-run web URL override (e.g. a PR preview deployment). Applies when run-web or web-targets is set.'
