@@ -5,6 +5,7 @@ import { uploadBuild, triggerRun, type Platform } from './api'
 import { getCiMetadata } from './ci-metadata'
 import { getCommitTitle } from './commit-title'
 import { resolvePrHeadSha } from './commit-sha'
+import { parseWebTargets } from './web-targets'
 import {
   validateRunFlags,
   validateAndroidBuild,
@@ -21,8 +22,11 @@ async function run(): Promise<void> {
     const userStoryIdsRaw = core.getInput('user-stories')
     const runIos = core.getBooleanInput('run-ios')
     const runAndroid = core.getBooleanInput('run-android')
+    const runWeb = core.getBooleanInput('run-web')
     const iosBuildPath = core.getInput('ios-build-path')
     const androidBuildPath = core.getInput('android-build-path')
+    const webTargetsRaw = core.getInput('web-targets')
+    const webUrl = core.getInput('web-url')
     const tenantId = core.getInput('tenant-id')
     const apiUrl = core.getInput('api-url')
     const cancelPreviousRuns = core.getBooleanInput('cancel-previous-runs')
@@ -47,13 +51,18 @@ async function run(): Promise<void> {
       )
     }
 
-    // Build the platforms array forwarded to the server. Only sent when the
-    // user opts out of one platform — when both are enabled (the default),
-    // we omit the field so the server's "both" default applies.
+    const webTargets = webTargetsRaw
+      ? parseWebTargets(webTargetsRaw)
+      : undefined
+    const wantWeb = runWeb || (webTargets?.length ?? 0) > 0
+
+    // Build the platforms array forwarded to the server. Omitted only when
+    // both native platforms are enabled and the web lane is off (the default),
+    // so the server's "both natives, web when configured" default applies.
     const platforms: Platform[] | undefined =
-      runIos && runAndroid
+      runIos && runAndroid && !wantWeb
         ? undefined
-        : ([runIos && 'ios', runAndroid && 'android'].filter(
+        : ([runIos && 'ios', runAndroid && 'android', wantWeb && 'web'].filter(
             Boolean,
           ) as Platform[])
 
@@ -64,7 +73,13 @@ async function run(): Promise<void> {
     const ciMetadata = getCiMetadata()
 
     // ── Validate run-flag / build-path combination ───────────────────
-    validateRunFlags({ runIos, runAndroid, iosBuildPath, androidBuildPath })
+    validateRunFlags({
+      runIos,
+      runAndroid,
+      wantWeb,
+      iosBuildPath,
+      androidBuildPath,
+    })
 
     let iosUploadPath: string | undefined
     const resolvedIosBuildPath = iosBuildPath
@@ -173,6 +188,8 @@ async function run(): Promise<void> {
       platforms,
       iosBuildId,
       androidBuildId,
+      webTargets,
+      webUrl: webUrl || undefined,
       tenantId: tenantId || undefined,
       prNumber: ciMetadata.prNumber,
       prTitle: ciMetadata.prTitle,
