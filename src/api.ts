@@ -126,13 +126,13 @@ export type Platform = 'ios' | 'android' | 'web'
  * A single web execution target.
  *
  * Mobile-web targets run on a real device and carry no viewport
- * (iOS uses Safari, Android uses Chrome). Desktop-web targets run in a
- * browser and carry a `pc` viewport.
+ * (iOS uses Safari, Android uses Chrome). Browser-web targets run in a
+ * browser and carry a `tablet` or `pc` viewport.
  */
 export interface WebTargetSpec {
   platform: Platform
   browser: 'chrome' | 'firefox' | 'safari'
-  viewport?: 'pc'
+  viewport?: 'tablet' | 'pc'
 }
 
 interface TriggerRunRequest {

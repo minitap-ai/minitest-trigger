@@ -123,12 +123,14 @@ The web lane has no build step, so there's nothing to upload. Point it at a URL 
 
 `web-targets` is a comma-separated list of `<browser>:<viewport>` tokens. The action maps each token to a target:
 
-| Token             | Runs as                  |
-| ----------------- | ------------------------ |
-| `safari:mobile`   | iOS Safari (mobile web)  |
+| Token             | Runs as                     |
+| ----------------- | --------------------------- |
+| `safari:mobile`   | iOS Safari (mobile web)     |
 | `chrome:mobile`   | Android Chrome (mobile web) |
-| `chrome:desktop`  | Desktop web (Chrome)     |
-| `firefox:desktop` | Desktop web (Firefox)    |
+| `chrome:tablet`   | Tablet web (Chrome)         |
+| `firefox:tablet`  | Tablet web (Firefox)        |
+| `chrome:desktop`  | Desktop web (Chrome)        |
+| `firefox:desktop` | Desktop web (Firefox)       |
 
 Other combinations (such as `firefox:mobile` or `safari:desktop`) are rejected with a clear error.
 

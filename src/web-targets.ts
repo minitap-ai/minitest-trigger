@@ -6,14 +6,16 @@ import type { WebTargetSpec } from './api'
  * Grammar: comma-separated `<browser>:<viewport>` tokens, e.g.
  *   `chrome:desktop,safari:mobile`
  *
- * Mapping (mobile-web runs on a real device, desktop-web in a browser):
- *   - safari:mobile   → iOS Safari       { platform: 'ios',     browser: 'safari' }
- *   - chrome:mobile   → Android Chrome    { platform: 'android', browser: 'chrome' }
- *   - chrome:desktop  → desktop web       { platform: 'web', browser: 'chrome',  viewport: 'pc' }
- *   - firefox:desktop → desktop web       { platform: 'web', browser: 'firefox', viewport: 'pc' }
+ * Mapping (mobile-web runs on a real device, browser-web in a browser):
+ *   - safari:mobile    → iOS Safari        { platform: 'ios',     browser: 'safari' }
+ *   - chrome:mobile    → Android Chrome     { platform: 'android', browser: 'chrome' }
+ *   - chrome:tablet    → tablet web         { platform: 'web', browser: 'chrome',  viewport: 'tablet' }
+ *   - firefox:tablet   → tablet web         { platform: 'web', browser: 'firefox', viewport: 'tablet' }
+ *   - chrome:desktop   → desktop web        { platform: 'web', browser: 'chrome',  viewport: 'pc' }
+ *   - firefox:desktop  → desktop web        { platform: 'web', browser: 'firefox', viewport: 'pc' }
  *
  * The user-facing `desktop` viewport maps to the server's `pc` enum value.
- * `firefox:mobile` and `safari:desktop` are rejected.
+ * `firefox:mobile` and `safari:desktop` / `safari:tablet` are rejected.
  */
 export function parseWebTargets(raw: string): WebTargetSpec[] {
   const tokens = raw
@@ -42,15 +44,17 @@ function parseWebTargetToken(token: string): WebTargetSpec {
   if (browser === 'chrome' && viewport === 'mobile') {
     return { platform: 'android', browser: 'chrome' }
   }
-  if (
-    viewport === 'desktop' &&
-    (browser === 'chrome' || browser === 'firefox')
-  ) {
-    return { platform: 'web', browser, viewport: 'pc' }
+  if (browser === 'chrome' || browser === 'firefox') {
+    if (viewport === 'tablet') {
+      return { platform: 'web', browser, viewport: 'tablet' }
+    }
+    if (viewport === 'desktop') {
+      return { platform: 'web', browser, viewport: 'pc' }
+    }
   }
 
   throw new Error(
     `Unsupported web target "${token}".\n` +
-      '  Valid targets: `chrome:desktop`, `firefox:desktop`, `chrome:mobile` (Android), `safari:mobile` (iOS).',
+      '  Valid targets: `chrome:desktop`, `firefox:desktop`, `chrome:tablet`, `firefox:tablet`, `chrome:mobile` (Android), `safari:mobile` (iOS).',
   )
 }
