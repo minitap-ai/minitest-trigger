@@ -8,22 +8,23 @@ import { execFileSync } from 'child_process'
  * Validate the run-flags / build-path input combination.
  *
  * Rules:
- *  1. At least one of `run-ios` / `run-android` must be true.
+ *  1. At least one lane (iOS, Android, or web) must be active.
  *  2. A build path can only be supplied for a platform that is enabled —
  *     otherwise the artifact would be uploaded but never tested.
  */
 export function validateRunFlags(opts: {
   runIos: boolean
   runAndroid: boolean
+  wantWeb: boolean
   iosBuildPath: string
   androidBuildPath: string
 }): void {
-  const { runIos, runAndroid, iosBuildPath, androidBuildPath } = opts
+  const { runIos, runAndroid, wantWeb, iosBuildPath, androidBuildPath } = opts
 
-  if (!runIos && !runAndroid) {
+  if (!runIos && !runAndroid && !wantWeb) {
     throw new Error(
-      'Nothing to run: both `run-ios` and `run-android` are false.\n' +
-        '  Enable at least one platform.',
+      'Nothing to run: no iOS, Android, or web lane is enabled.\n' +
+        '  Enable `run-ios`, `run-android`, `run-web`, or provide `web-targets`.',
     )
   }
 
