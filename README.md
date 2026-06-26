@@ -37,9 +37,9 @@ jobs:
 | `run-android`        | No       | `true`                                   | Run tests on Android. Minitest builds the app when no path is given.         |
 | `ios-build-path`     | No       | —                                        | Pre-built iOS bundle (`.app` directory or `.ipa` file). Optional.            |
 | `android-build-path` | No       | —                                        | Pre-built Android `.apk` (must target x86-64). Optional.                     |
-| `run-web`            | No       | `false`                                  | Run the web lane using the app's configured default web targets. See [Web runs](#web-runs). |
+| `run-web`            | No       | `false`                                  | Run the web lane. For a web app linked to a GitHub repo, Minitest builds and serves the commit this workflow runs on (no `web-url` needed); otherwise it tests the app's configured web URL. See [Web runs](#web-runs). |
 | `web-targets`        | No       | —                                        | Explicit web targets, comma-separated `<browser>:<viewport>` (e.g. `chrome:desktop,safari:mobile`). Enables the web lane on its own. |
-| `web-url`            | No       | —                                        | Per-run web URL override (e.g. a PR preview deployment). Applies when `run-web` or `web-targets` is set. |
+| `web-url`            | No       | —                                        | Per-run web URL override (e.g. a PR preview deployment). When set, the web lane tests this URL instead of building the commit. Applies when `run-web` or `web-targets` is set. |
 | `user-story-types`   | No       | —                                        | Comma-separated user story types to run (e.g., `login,checkout`)             |
 | `tenant-id`          | No       | —                                        | Tenant ID (required if repo is linked to multiple tenants)                   |
 | `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                                        |
@@ -119,7 +119,7 @@ There are two ways to include the web lane:
 - **`run-web: true`** runs the app's configured default web targets (set per app in Minitest).
 - **`web-targets`** runs an explicit list and includes the web lane on its own (you don't also need `run-web`).
 
-The web lane has no build step, so there's nothing to upload. Point it at a URL with `web-url` (for example a PR preview deployment); otherwise the app's configured web URL is used.
+For a web app linked to a GitHub repo (set in App Settings), the web lane builds and serves the commit this workflow runs on and tests against that build. No `web-url` is required, and this holds even when the app also has a configured web URL: the linked-repo lane tests the commit, not the deployment. Supply `web-url` (for example a PR preview deployment) only to test a separately-deployed URL instead of the commit. For a web app with only a configured URL and no linked repo, the lane tests that configured URL.
 
 `web-targets` is a comma-separated list of `<browser>:<viewport>` tokens. The action maps each token to a target:
 
