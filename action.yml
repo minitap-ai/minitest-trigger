@@ -30,14 +30,14 @@ inputs:
     description: 'Optional path to a pre-built Android emulator build (.apk, must target x86-64). When omitted with `run-android: true`, Minitest builds the app.'
     required: false
   run-web:
-    description: 'Run the web lane using the app''s configured default web targets. Defaults to false.'
+    description: 'Run the web lane. For a web app linked to a GitHub repo, Minitest builds and serves the commit this workflow runs on and tests against it (no web-url needed). For a web app with only a configured URL, it tests that URL. Defaults to false.'
     required: false
     default: 'false'
   web-targets:
     description: 'Explicit web targets as a comma-separated list of `<browser>:<viewport>` (e.g. "chrome:desktop,safari:mobile"). Valid: chrome:desktop, firefox:desktop, chrome:tablet, firefox:tablet, chrome:mobile (Android), safari:mobile (iOS). Enables the web lane on its own.'
     required: false
   web-url:
-    description: 'Per-run web URL override (e.g. a PR preview deployment). Applies when run-web or web-targets is set.'
+    description: 'Per-run web URL override (e.g. a PR preview deployment). When set, the web lane tests this URL instead of building the commit. Applies when run-web or web-targets is set.'
     required: false
   commit-title:
     description: 'Commit title (first line of the commit message). Auto-detected from the GitHub event payload if not provided.'
