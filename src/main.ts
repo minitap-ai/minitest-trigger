@@ -20,6 +20,7 @@ async function run(): Promise<void> {
     const appSlug = core.getInput('app-slug', { required: true })
     const userStoryTypesRaw = core.getInput('user-story-types')
     const userStoryIdsRaw = core.getInput('user-stories')
+    const scopeRaw = core.getInput('scope')
     const runIos = core.getBooleanInput('run-ios')
     const runAndroid = core.getBooleanInput('run-android')
     const runWeb = core.getBooleanInput('run-web')
@@ -48,6 +49,13 @@ async function run(): Promise<void> {
     if (userStoryTypes?.length && userStoryIds?.length) {
       throw new Error(
         '`user-story-types` and `user-stories` are mutually exclusive — provide only one.',
+      )
+    }
+
+    const scope = scopeRaw ? scopeRaw.trim().toLowerCase() : undefined
+    if (scope && scope !== 'affected' && scope !== 'full') {
+      throw new Error(
+        `\`scope\` must be "affected" or "full" (got "${scopeRaw}").`,
       )
     }
 
@@ -186,6 +194,7 @@ async function run(): Promise<void> {
       commitSha,
       userStoryTypes,
       userStoryIds,
+      scope,
       platforms,
       iosBuildId,
       androidBuildId,

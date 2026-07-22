@@ -15,6 +15,9 @@ inputs:
   user-stories:
     description: 'User story IDs (UUIDs) to run, separated by newlines and/or commas. Mutually exclusive with `user-story-types`.'
     required: false
+  scope:
+    description: 'Which scenarios to run: `affected` (only scenarios impacted since the last release, on a matching release tag) or `full` (the whole suite). Ignored when `user-stories` or `user-story-types` is set. Leave empty to let the server self-gate (affected on a matching release tag, full otherwise).'
+    required: false
   run-ios:
     description: 'Run tests on iOS. When true and no `ios-build-path` is provided, Minitest builds the app for you. Defaults to true.'
     required: false

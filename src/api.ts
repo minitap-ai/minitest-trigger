@@ -148,6 +148,12 @@ interface TriggerRunRequest {
   userStoryTypes?: string[]
   /** Specific user story IDs (UUIDs) to run. Mutually exclusive with `userStoryTypes`. */
   userStoryIds?: string[]
+  /**
+   * Scenario scope: `affected` (only scenarios impacted since the last release,
+   * on a matching release tag) or `full` (whole suite). Ignored when
+   * `userStoryTypes` or `userStoryIds` is set. Omit to let the server self-gate.
+   */
+  scope?: string
   platforms?: Platform[]
   iosBuildId?: string
   androidBuildId?: string
