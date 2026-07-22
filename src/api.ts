@@ -123,6 +123,12 @@ interface UploadResponse {
 export type Platform = 'ios' | 'android' | 'web'
 
 /**
+ * Scenario scope on a matching release tag: `affected` (only scenarios impacted
+ * since the last release) or `full` (whole suite).
+ */
+export type RunScope = 'affected' | 'full'
+
+/**
  * A single web execution target.
  *
  * Mobile-web targets run on a real device and carry no viewport
@@ -148,12 +154,8 @@ interface TriggerRunRequest {
   userStoryTypes?: string[]
   /** Specific user story IDs (UUIDs) to run. Mutually exclusive with `userStoryTypes`. */
   userStoryIds?: string[]
-  /**
-   * Scenario scope: `affected` (only scenarios impacted since the last release,
-   * on a matching release tag) or `full` (whole suite). Ignored when
-   * `userStoryTypes` or `userStoryIds` is set. Omit to let the server self-gate.
-   */
-  scope?: string
+  /** Ignored when `userStoryTypes`/`userStoryIds` is set; omit to let the server self-gate. */
+  scope?: RunScope
   platforms?: Platform[]
   iosBuildId?: string
   androidBuildId?: string
