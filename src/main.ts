@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as core from '@actions/core'
-import { uploadBuild, triggerRun, type Platform } from './api'
+import { uploadBuild, triggerRun, type Platform, type RunScope } from './api'
 import { getCiMetadata } from './ci-metadata'
 import { getCommitTitle } from './commit-title'
 import { resolvePrHeadSha } from './commit-sha'
@@ -52,12 +52,17 @@ async function run(): Promise<void> {
       )
     }
 
-    const scope = scopeRaw ? scopeRaw.trim().toLowerCase() : undefined
-    if (scope && scope !== 'affected' && scope !== 'full') {
+    const scopeNormalized = scopeRaw ? scopeRaw.trim().toLowerCase() : undefined
+    if (
+      scopeNormalized &&
+      scopeNormalized !== 'affected' &&
+      scopeNormalized !== 'full'
+    ) {
       throw new Error(
         `\`scope\` must be "affected" or "full" (got "${scopeRaw}").`,
       )
     }
+    const scope = scopeNormalized as RunScope | undefined
 
     const parsedWebTargets = webTargetsRaw
       ? parseWebTargets(webTargetsRaw)
