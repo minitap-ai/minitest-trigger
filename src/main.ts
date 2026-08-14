@@ -5,6 +5,7 @@ import { uploadBuild, triggerRun, type Platform, type RunScope } from './api'
 import { getCiMetadata } from './ci-metadata'
 import { getCommitTitle } from './commit-title'
 import { resolvePrHeadSha } from './commit-sha'
+import { resolveIssueCommentPrContext } from './pr-context'
 import { parseWebTargets } from './web-targets'
 import {
   validateRunFlags,
@@ -31,6 +32,7 @@ async function run(): Promise<void> {
     const tenantId = core.getInput('tenant-id')
     const apiUrl = core.getInput('api-url')
     const cancelPreviousRuns = core.getBooleanInput('cancel-previous-runs')
+    const githubToken = core.getInput('github-token')
 
     const userStoryTypes = userStoryTypesRaw
       ? userStoryTypesRaw
@@ -80,11 +82,28 @@ async function run(): Promise<void> {
             Boolean,
           ) as Platform[])
 
+    // ── Resolve CI metadata (PR / release info) ─────────────────────
+    const eventName = process.env.GITHUB_EVENT_NAME
+    const ciMetadata = getCiMetadata()
+
+    // An issue_comment payload names the PR but carries neither its head SHA
+    // nor its branches, so they have to be fetched.
+    const issueCommentPr =
+      eventName === 'issue_comment'
+        ? await resolveIssueCommentPrContext(githubToken)
+        : undefined
+    if (issueCommentPr) {
+      ciMetadata.prNumber = issueCommentPr.prNumber
+      ciMetadata.prTitle = issueCommentPr.prTitle
+      ciMetadata.baseRef = issueCommentPr.baseRef
+      ciMetadata.headRef = issueCommentPr.headRef
+      core.info(
+        `Attaching run to pull request #${issueCommentPr.prNumber} (head=${issueCommentPr.headRef ?? '?'} base=${issueCommentPr.baseRef ?? '?'})`,
+      )
+    }
+
     // ── Resolve commit title ────────────────────────────────────────
     const commitTitle = getCommitTitle()
-
-    // ── Resolve CI metadata (PR / release info) ─────────────────────
-    const ciMetadata = getCiMetadata()
 
     // ── Validate run-flag / build-path combination ───────────────────
     validateRunFlags({
@@ -141,17 +160,14 @@ async function run(): Promise<void> {
       )
     }
 
-    // ── PR-event SHA override ─────────────────────────────────────────
-    // For pull_request / pull_request_target, claims.sha is the ephemeral
-    // test-merge commit and not addressable from the PR Checks tab. Prefer
-    // pull_request.head.sha read from the event payload when available.
-    const eventName = process.env.GITHUB_EVENT_NAME
-    const prHeadSha = resolvePrHeadSha(eventName)
+    // ── PR-context SHA override ───────────────────────────────────────
+    // claims.sha is the ephemeral test-merge commit on pull_request events and
+    // the default-branch head on issue_comment — neither is addressable from
+    // the PR Checks tab. Prefer the PR head SHA whenever we could resolve one.
+    const prHeadSha = issueCommentPr?.headSha ?? resolvePrHeadSha(eventName)
     const commitSha = prHeadSha ?? oidcSha
     if (prHeadSha && prHeadSha !== oidcSha) {
-      core.info(
-        `Using PR head SHA ${prHeadSha} from event payload instead of OIDC merge SHA ${oidcSha}`,
-      )
+      core.info(`Using PR head SHA ${prHeadSha} instead of OIDC sha ${oidcSha}`)
     }
 
     // ── Upload builds ────────────────────────────────────────────────

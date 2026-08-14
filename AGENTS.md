@@ -18,7 +18,7 @@ The action talks to the Minitap testing-service (see `../testing-service` for th
 - `POST /api/v1/ci/builds/upload` — multipart form: `file`, `app_slug`, `commit_title`, `commit_sha` (optional override), `tenant_id` (optional). Returns `{ buildId, platform, appId }`
 - `POST /api/v1/ci/run` — JSON: `{ appSlug, commitTitle, commitSha?, userStoryTypes?, iosBuildId?, androidBuildId?, tenantId?, prNumber?, prTitle? }`. Returns `{ batchId, status, appId, appSlug }`
 - Auth: `Authorization: Bearer <oidc-token>` with audience `https://testing-service.minitap.ai`
-- Commit SHA: the server defaults to the OIDC `sha` claim. For `pull_request` / `pull_request_target` events the action sends `pull_request.head.sha` (read from `GITHUB_EVENT_PATH`) as a `commit_sha` override, because the OIDC claim points at the ephemeral merge commit and is not addressable from the PR "Checks" tab. The server only honours the override for those PR events; for any other event the override is ignored.
+- Commit SHA: the server defaults to the OIDC `sha` claim. The action overrides it with the PR head SHA on PR-context events, because the claim points at the ephemeral merge commit (`pull_request`) or the default-branch head (`issue_comment`) and is not addressable from the PR "Checks" tab. On `pull_request` / `pull_request_target` the SHA and refs come from `GITHUB_EVENT_PATH`; on `issue_comment` the payload has neither, so `src/pr-context.ts` fetches the PR via the REST API using the `github-token` input. The server only honours the override for those three events; for any other event it is ignored.
 
 ## Tech Stack
 
