@@ -41,6 +41,7 @@ jobs:
 | `web-targets`        | No       | —                                        | Explicit web targets, comma-separated `<browser>:<viewport>` (e.g. `chrome:desktop,safari:mobile`). Enables the web lane on its own. |
 | `web-url`            | No       | —                                        | Per-run web URL override (e.g. a PR preview deployment). When set, the web lane tests this URL instead of building the commit. Applies when `run-web` or `web-targets` is set. |
 | `user-story-types`   | No       | —                                        | Comma-separated user story types to run (e.g., `login,checkout`)             |
+| `scope`              | No       | —                                        | `affected` (impacted since the last release tag), `pr-affected` (impacted by this pull request, see [Scoping a run to a pull request](#scoping-a-run-to-a-pull-request)) or `full`. Ignored when `user-stories` / `user-story-types` is set. |
 | `tenant-id`          | No       | —                                        | Tenant ID (required if repo is linked to multiple tenants)                   |
 | `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                                        |
 | `github-token`       | No       | `${{ github.token }}`                    | Used on `issue_comment` events to resolve the pull request behind the comment so the run is attached to it. Needs `pull-requests: read`. See [Preview deployments posted as PR comments](#preview-deployments-posted-as-pr-comments). |
@@ -52,7 +53,7 @@ jobs:
 
 | Output     | Description                           |
 | ---------- | ------------------------------------- |
-| `batch-id` | The ID of the triggered test batch    |
+| `batch-id` | The ID of the triggered test batch, empty when no batch was created |
 | `status`   | Initial status of the triggered batch |
 
 ## How It Works
@@ -236,9 +237,25 @@ jobs:
           run-android: false
           web-targets: chrome:desktop
           web-url: ${{ steps.parse.outputs.url }}
+          scope: pr-affected
 ```
 
 Two caveats: `issue_comment` workflows only run from the default branch (the file must be merged before commenting does anything), and a preview behind Vercel Deployment Protection serves an SSO page rather than your app.
+
+## Scoping a run to a pull request
+
+`scope: pr-affected` runs only the scenarios the pull request's code changes could impact, instead of the whole suite. The impact analysis is the one already powering the "Run affected" checkbox on Minitest's pull request comment, so both entry points always agree on what "affected" means.
+
+It needs the Minitap GitHub App installed on the repository — that is what observes the pull request and computes the analysis — and a pull request context (a `pull_request` event, or an `issue_comment` on a PR with `github-token` set).
+
+Four outcomes, all non-fatal:
+
+| Situation | What runs |
+| --- | --- |
+| The analysis is ready | Only the impacted scenarios |
+| The analysis is still computing | The batch is created and parked; it starts, scoped, as soon as the analysis lands |
+| No analysis exists (no GitHub App, or no PR context) | The whole suite, with a warning annotation |
+| The analysis found nothing impacted | Nothing — no batch is created, `batch-id` is empty, and a warning explains why |
 
 ### Multi-tenant setup
 

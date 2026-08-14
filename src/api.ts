@@ -123,10 +123,13 @@ interface UploadResponse {
 export type Platform = 'ios' | 'android' | 'web'
 
 /**
- * Scenario scope on a matching release tag: `affected` (only scenarios impacted
- * since the last release) or `full` (whole suite).
+ * Which scenarios a run covers: `affected` (impacted since the last release, on
+ * a matching release tag), `pr-affected` (impacted by this pull request) or
+ * `full` (whole suite).
  */
-export type RunScope = 'affected' | 'full'
+export const RUN_SCOPES = ['affected', 'pr-affected', 'full'] as const
+
+export type RunScope = (typeof RUN_SCOPES)[number]
 
 /**
  * A single web execution target.
@@ -185,10 +188,13 @@ interface TriggerRunRequest {
 }
 
 interface TriggerRunResponse {
-  batchId: string
+  /** Null when the server accepted the request without creating a batch. */
+  batchId: string | null
   status: string
   appId: string
   appSlug: string
+  /** Non-fatal notices about how the server interpreted the request. */
+  warnings?: string[] | null
 }
 
 interface UploadBuildOptions {
@@ -348,6 +354,12 @@ export async function triggerRun(
   }
 
   const data = JSON.parse(responseBody) as TriggerRunResponse
+
+  // Surface non-fatal notices as GitHub Annotations so they appear on the
+  // workflow summary alongside the run results.
+  for (const warning of data.warnings ?? []) {
+    core.warning(warning, { title: 'Minitest' })
+  }
 
   return data
 }

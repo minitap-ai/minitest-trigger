@@ -1,7 +1,13 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as core from '@actions/core'
-import { uploadBuild, triggerRun, type Platform, type RunScope } from './api'
+import {
+  uploadBuild,
+  triggerRun,
+  RUN_SCOPES,
+  type Platform,
+  type RunScope,
+} from './api'
 import { getCiMetadata } from './ci-metadata'
 import { getCommitTitle } from './commit-title'
 import { resolvePrHeadSha } from './commit-sha'
@@ -55,13 +61,9 @@ async function run(): Promise<void> {
     }
 
     const scopeNormalized = scopeRaw ? scopeRaw.trim().toLowerCase() : undefined
-    if (
-      scopeNormalized &&
-      scopeNormalized !== 'affected' &&
-      scopeNormalized !== 'full'
-    ) {
+    if (scopeNormalized && !RUN_SCOPES.includes(scopeNormalized as RunScope)) {
       throw new Error(
-        `\`scope\` must be "affected" or "full" (got "${scopeRaw}").`,
+        `\`scope\` must be one of ${RUN_SCOPES.map((value) => `"${value}"`).join(', ')} (got "${scopeRaw}").`,
       )
     }
     const scope = scopeNormalized as RunScope | undefined
@@ -229,15 +231,18 @@ async function run(): Promise<void> {
       cancelPreviousRuns,
     })
 
-    // ── Output results ───────────────────────────────────────────────
     core.info('────────────────────────────────────────────')
-    core.info(`Test run triggered successfully!`)
-    core.info(`Batch ID: ${result.batchId}`)
-    core.info(`Status:   ${result.status}`)
+    if (result.batchId === null) {
+      core.info('Request accepted, but there was no scenario to run.')
+    } else {
+      core.info(`Test run triggered successfully!`)
+      core.info(`Batch ID: ${result.batchId}`)
+      core.info(`Status:   ${result.status}`)
+      core.info('Results will be reported back via GitHub Check Runs.')
+    }
     core.info('────────────────────────────────────────────')
-    core.info('Results will be reported back via GitHub Check Runs.')
 
-    core.setOutput('batch-id', result.batchId)
+    core.setOutput('batch-id', result.batchId ?? '')
     core.setOutput('status', result.status)
   } catch (error) {
     if (error instanceof Error) {

@@ -16,7 +16,7 @@ inputs:
     description: 'User story IDs (UUIDs) to run, separated by newlines and/or commas. Mutually exclusive with `user-story-types`.'
     required: false
   scope:
-    description: 'Which scenarios to run: `affected` (only scenarios impacted since the last release, on a matching release tag) or `full` (the whole suite). Ignored when `user-stories` or `user-story-types` is set. Leave empty to let the server self-gate (affected on a matching release tag, full otherwise).'
+    description: 'Which scenarios to run: `affected` (only scenarios impacted since the last release, on a matching release tag), `pr-affected` (only the ones the pull request changes could impact — needs a pull request context and the Minitap GitHub App on the repository, otherwise the whole suite runs with a warning) or `full` (the whole suite). Ignored when `user-stories` or `user-story-types` is set. Leave empty to let the server self-gate (affected on a matching release tag, full otherwise).'
     required: false
   run-ios:
     description: 'Run tests on iOS. When true and no `ios-build-path` is provided, Minitest builds the app for you. Defaults to true.'
@@ -63,7 +63,7 @@ inputs:
 
 outputs:
   batch-id:
-    description: 'The ID of the triggered test batch'
+    description: 'The ID of the triggered test batch, empty when no batch was created (e.g. `pr-affected` found no impacted scenario)'
   status:
     description: 'Initial status of the triggered batch'
 
