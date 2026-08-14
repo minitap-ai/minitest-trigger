@@ -43,6 +43,7 @@ jobs:
 | `user-story-types`   | No       | —                                        | Comma-separated user story types to run (e.g., `login,checkout`)             |
 | `tenant-id`          | No       | —                                        | Tenant ID (required if repo is linked to multiple tenants)                   |
 | `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                                        |
+| `github-token`       | No       | `${{ github.token }}`                    | Used on `issue_comment` events to resolve the pull request behind the comment so the run is attached to it. Needs `pull-requests: read`. See [Preview deployments posted as PR comments](#preview-deployments-posted-as-pr-comments). |
 | `cancel-previous-runs` | No     | `true`                                   | Cancel previous in-flight batches on the same source branch when it matches the app's release branch patterns. See [Cancelling previous runs](#cancelling-previous-runs). |
 
 > By default, Minitest builds your app for both platforms. Set `run-ios: false` or `run-android: false` to skip a platform, or supply a `*-build-path` to use a build you've already produced.
@@ -199,6 +200,45 @@ Other combinations (such as `firefox:mobile` or `safari:desktop`) are rejected w
     web-targets: chrome:desktop,safari:mobile
     web-url: https://pr-142.preview.example.com
 ```
+
+### Preview deployments posted as PR comments
+
+Vercel, Netlify & co. announce each preview deployment as a comment on the pull request. Trigger the web lane from that comment and the batch is attached to the PR — its check run shows up in the PR's Checks tab, and — when the PR head branch matches one of the app's release branch patterns — `cancel-previous-runs` supersedes the batch from the previous preview.
+
+```yaml
+name: Minitest preview
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  id-token: write
+  pull-requests: read
+
+jobs:
+  minitest:
+    if: github.event.issue.pull_request != null && github.event.comment.user.login == 'vercel[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - id: parse
+        run: |
+          url="$(grep -Eo 'https://[A-Za-z0-9._-]+\.vercel\.app[^ )"'"'"']*' <<< "$COMMENT" | head -n1)"
+          [ -n "$url" ] || exit 1
+          echo "url=${url%/}" >> "$GITHUB_OUTPUT"
+        env:
+          COMMENT: ${{ github.event.comment.body }}
+
+      - uses: minitap-ai/minitest-trigger@v1
+        with:
+          app-slug: my-app
+          run-ios: false
+          run-android: false
+          web-targets: chrome:desktop
+          web-url: ${{ steps.parse.outputs.url }}
+```
+
+Two caveats: `issue_comment` workflows only run from the default branch (the file must be merged before commenting does anything), and a preview behind Vercel Deployment Protection serves an SSO page rather than your app.
 
 ### Multi-tenant setup
 

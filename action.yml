@@ -52,6 +52,10 @@ inputs:
     description: 'Override API base URL'
     required: false
     default: 'https://testing-service.app.minitap.ai'
+  github-token:
+    description: 'Token used to resolve the pull request behind an `issue_comment` event, so the run is attached to that PR. Needs `pull-requests: read`. Unused on other events.'
+    required: false
+    default: ${{ github.token }}
   cancel-previous-runs:
     description: 'Cancel previous in-flight test batches for the same source branch when it matches the app''s release branch patterns. Has no effect on tag pushes or on branches that don''t match a configured release pattern.'
     required: false

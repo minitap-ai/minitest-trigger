@@ -8,7 +8,7 @@ import * as core from '@actions/core'
  *
  *   1. Explicit `commit-title` action input (highest priority)
  *   2. GitHub event payload (`head_commit.message` for push events,
- *      `pull_request.title` for PR events)
+ *      `pull_request.title` for PR events, `issue.title` for issue_comment)
  *   3. `git log` using GITHUB_SHA (works for any event type, e.g.
  *      workflow_dispatch, schedule)
  *
@@ -36,8 +36,8 @@ export function getCommitTitle(): string {
         return title
       }
 
-      // PR events have pull_request.title
-      const prTitle = event?.pull_request?.title
+      // PR events have pull_request.title; on issue_comment the PR is an issue.
+      const prTitle = event?.pull_request?.title ?? event?.issue?.title
       if (typeof prTitle === 'string') {
         const title = firstLine(prTitle)
         if (title) {
