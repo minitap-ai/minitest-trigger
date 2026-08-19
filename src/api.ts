@@ -4,7 +4,14 @@ import * as path from 'path'
 import { Readable } from 'stream'
 import { HttpClient } from '@actions/http-client'
 
-const client = new HttpClient('minitap-trigger-action')
+// The default @actions/http-client socket timeout is 3 minutes. testing-service's
+// /api/v1/ci/run endpoint can legitimately take longer than that when a rolling
+// deploy is in progress on the API side (consumers restart, requests queue up
+// behind the restart), which was observed to cause spurious "Request timeout"
+// failures on otherwise-successful triggers. Bump to 5 minutes to absorb that.
+const client = new HttpClient('minitap-trigger-action', undefined, {
+  socketTimeout: 5 * 60_000,
+})
 
 /** Standard error envelope returned by the Minitap API. */
 interface ApiError {
