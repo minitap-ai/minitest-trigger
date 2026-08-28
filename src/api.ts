@@ -371,6 +371,79 @@ export async function triggerRun(
   return data
 }
 
+/**
+ * Terminal verdict of a run. `nothing_affected` means the impact analysis found
+ * no scenario to run: it is a pass, not a failure and not a missing result.
+ */
+export type RunResult = 'passed' | 'failed' | 'error' | 'nothing_affected'
+
+interface CiStatusResponse {
+  /** `pending` means no batch exists yet — the analysis is still running. */
+  state: 'pending' | 'running' | 'completed'
+  result: RunResult | null
+  batchId: string | null
+  appId: string
+  appSlug: string
+  url: string | null
+  failedStories: string[]
+}
+
+interface CiStatusRequest {
+  appSlug: string
+  commitSha: string
+  tenantId?: string
+}
+
+/** Carries the status code so pollers can tell a fatal auth failure from a transient one. */
+export class CiStatusError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number,
+  ) {
+    super(message)
+    this.name = 'CiStatusError'
+  }
+}
+
+/**
+ * Fetch the current verdict of the run for a commit.
+ *
+ * Stays silent, unlike `triggerRun` — it is called on a polling loop.
+ */
+export async function getCiStatus(
+  apiUrl: string,
+  token: string,
+  request: CiStatusRequest,
+): Promise<CiStatusResponse> {
+  const query = new URLSearchParams({
+    app_slug: request.appSlug,
+    commit_sha: request.commitSha,
+  })
+  if (request.tenantId) {
+    query.set('tenant_id', request.tenantId)
+  }
+
+  const response = await client.get(
+    `${apiUrl}/api/v1/ci/status?${query.toString()}`,
+    {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  )
+
+  const statusCode = response.message.statusCode ?? 0
+  const responseBody = await response.readBody()
+
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new CiStatusError(
+      formatApiError('Fetch run status failed', statusCode, responseBody),
+      statusCode,
+    )
+  }
+
+  return JSON.parse(responseBody) as CiStatusResponse
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
