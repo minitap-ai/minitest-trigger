@@ -18,32 +18,10 @@ import {
   validateAndroidBuild,
   validateIosBuild,
 } from './validate'
-import { waitForVerdict, type VerdictReached } from './wait-for-result'
+import { waitForVerdict } from './wait-for-result'
+import { reportVerdict } from './verdict'
 
 const DEFAULT_API_URL = 'https://testing-service.app.minitap.ai'
-
-function reportGateFailure(failOnFailure: boolean, message: string): void {
-  if (failOnFailure) {
-    core.setFailed(message)
-  } else {
-    core.warning(message)
-  }
-}
-
-function describeFailedRun(outcome: VerdictReached): string {
-  const { failedStories } = outcome
-  let message =
-    outcome.result === 'error'
-      ? 'The Minitest run errored before reaching a verdict.'
-      : failedStories.length
-        ? `The Minitest run failed — ${failedStories.length} failing ${failedStories.length === 1 ? 'story' : 'stories'}: ${failedStories.join(', ')}`
-        : 'The Minitest run failed.'
-
-  if (outcome.url) {
-    message += `\n${outcome.url}`
-  }
-  return message
-}
 
 async function run(): Promise<void> {
   try {
@@ -304,29 +282,7 @@ async function run(): Promise<void> {
       timeoutMs: waitTimeoutMinutes * 60_000,
     })
 
-    if (outcome.timedOut) {
-      core.setOutput('result', '')
-      core.setOutput('batch-url', outcome.url ?? '')
-      reportGateFailure(
-        failOnFailure,
-        `Timed out after ${waitTimeoutMinutes} minutes waiting for a verdict.${outcome.url ? `\n${outcome.url}` : ''}`,
-      )
-      return
-    }
-
-    core.setOutput('result', outcome.result)
-    core.setOutput('batch-url', outcome.url ?? '')
-
-    if (outcome.result === 'passed' || outcome.result === 'nothing_affected') {
-      core.info(
-        outcome.result === 'nothing_affected'
-          ? 'No scenario was impacted by this commit — nothing to run.'
-          : 'The Minitest run passed.',
-      )
-      return
-    }
-
-    reportGateFailure(failOnFailure, describeFailedRun(outcome))
+    reportVerdict(outcome, { failOnFailure, waitTimeoutMinutes })
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message)
