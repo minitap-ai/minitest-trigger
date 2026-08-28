@@ -7,6 +7,7 @@
     "build": "tsc",
     "bundle": "ncc build src/main.ts --source-map --license licenses.txt",
     "lint": "eslint src/",
+    "test": "vitest run",
     "format": "prettier --write 'src/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts'",
     "all": "npm run build && npm run lint && npm run format:check && npm run bundle"
@@ -26,12 +27,13 @@
     "@actions/http-client": "^2.2.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9.25.1",
     "@types/node": "^22.15.2",
     "@vercel/ncc": "^0.44.0",
     "eslint": "^9.25.1",
     "prettier": "^3.5.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.31.0",
-    "@eslint/js": "^9.25.1"
+    "vitest": "^4.1.11"
   }
 }
