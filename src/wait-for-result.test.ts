@@ -118,19 +118,41 @@ describe('waitForVerdict', () => {
     expect(http.requests).toHaveLength(2)
   })
 
-  it.each([401, 403])(
+  it.each([401, 403, 404, 409, 422])(
     'aborts immediately on HTTP %i instead of retrying until the timeout',
     async (statusCode) => {
       http.queue.push(
         {
           statusCode,
-          body: JSON.stringify({ error: 'unauthorized', message: 'nope' }),
+          body: JSON.stringify({ error: 'client', message: 'nope' }),
         },
         COMPLETED,
       )
 
       await expect(wait()).rejects.toBeInstanceOf(CiStatusError)
       expect(http.requests).toHaveLength(1)
+    },
+  )
+
+  it.each([408, 429])(
+    'keeps polling through HTTP %i, which invites another attempt',
+    async (statusCode) => {
+      http.queue.push(
+        {
+          statusCode,
+          body: JSON.stringify({ error: 'retry', message: 'later' }),
+        },
+        COMPLETED,
+      )
+
+      const outcome = wait()
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
+
+      await expect(outcome).resolves.toMatchObject({
+        timedOut: false,
+        result: 'passed',
+      })
+      expect(http.requests).toHaveLength(2)
     },
   )
 })
