@@ -46,15 +46,20 @@ jobs:
 | `api-url`            | No       | `https://testing-service.app.minitap.ai` | Override API base URL                                                        |
 | `github-token`       | No       | `${{ github.token }}`                    | Used on `issue_comment` events to resolve the pull request behind the comment so the run is attached to it. Needs `pull-requests: read`. See [Preview deployments posted as PR comments](#preview-deployments-posted-as-pr-comments). |
 | `cancel-previous-runs` | No     | `true`                                   | Cancel previous in-flight batches on the same source branch when it matches the app's release branch patterns. See [Cancelling previous runs](#cancelling-previous-runs). |
+| `wait-for-result`      | No     | `false`                                  | Block until the run reaches a verdict instead of exiting immediately. See [Gating a release on the suite](#gating-a-release-on-the-suite). |
+| `wait-timeout-minutes` | No     | `45`                                     | How long to wait for a verdict when `wait-for-result` is enabled.            |
+| `fail-on-failure`      | No     | `false`                                  | Fail the step when the verdict is a failure. Requires `wait-for-result: true`. |
 
 > By default, Minitest builds your app for both platforms. Set `run-ios: false` or `run-android: false` to skip a platform, or supply a `*-build-path` to use a build you've already produced.
 
 ## Outputs
 
-| Output     | Description                           |
-| ---------- | ------------------------------------- |
-| `batch-id` | The ID of the triggered test batch, empty when no batch was created |
-| `status`   | Initial status of the triggered batch |
+| Output      | Description                           |
+| ----------- | ------------------------------------- |
+| `batch-id`  | The ID of the triggered test batch, empty when no batch was created |
+| `status`    | Initial status of the triggered batch |
+| `result`    | The verdict when `wait-for-result` is enabled: `passed`, `failed`, `error` or `nothing_affected`. Empty otherwise (including on timeout). |
+| `batch-url` | Link to the run in the Minitest dashboard, when one was created |
 
 ## How It Works
 
@@ -62,7 +67,7 @@ jobs:
 2. **Validate Builds** — If you supplied any build paths, the action validates the artifacts (see below).
 3. **Upload Builds** — Uploads your supplied builds to Minitap (`.app` bundles are automatically packaged into `.ipa`).
 4. **Trigger Run** — Calls the Minitap CI API. For any enabled platform without a supplied build, Minitest builds the app for this commit on your behalf.
-5. **Fire & Forget** — The action exits immediately. Results are reported back via GitHub Check Runs.
+5. **Fire & Forget** — The action exits immediately. Results are reported back via GitHub Check Runs. Set `wait-for-result: true` to block on the verdict instead, so a deploy can be gated on it — see [Gating a release on the suite](#gating-a-release-on-the-suite).
 
 ## Build Requirements
 
@@ -283,6 +288,71 @@ No-ops:
 - Events where the branch can't be determined (e.g., PR event payload missing).
 
 Opt out with `cancel-previous-runs: false`.
+
+## Gating a release on the suite
+
+By default the action is fire-and-forget: it triggers the run and exits, and the results land later as a GitHub Check Run. That is the right behaviour for a PR check, but it means a deploy job can ship before the suite has said anything.
+
+Set `wait-for-result: true` to block until the run reaches a verdict, and `fail-on-failure: true` to turn that verdict into a red step. Everything downstream then gates on it with `needs:`.
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+
+jobs:
+  minitest-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: minitap-ai/minitest-trigger@v1
+        id: minitest
+        with:
+          app-slug: my-app
+          scope: affected
+          wait-for-result: true
+          fail-on-failure: true
+          wait-timeout-minutes: 60
+
+  deploy:
+    needs: minitest-gate
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./scripts/deploy.sh
+```
+
+`deploy` runs only once `minitest-gate` is green. If the suite fails, the job goes red and every job that `needs:` it is skipped — nothing ships.
+
+### What counts as a pass
+
+| Verdict (`result` output) | Gate |
+| --- | --- |
+| `passed` | ✅ Passes — every scenario passed |
+| `nothing_affected` | ✅ **Passes** — the impact analysis found no scenario affected by this commit, so no batch was created. A no-op release is not a failure and must not block the deploy. |
+| `failed` | ❌ Fails — the step message names the failing stories and links the run |
+| `error` | ❌ Fails — the run errored or was cancelled, so there is no trustworthy verdict |
+
+If the timeout elapses first, `result` is empty and the step fails with a timeout message (or warns, when `fail-on-failure` is false). Raise `wait-timeout-minutes` for suites that legitimately run longer than 45 minutes.
+
+### Warn without blocking
+
+Leave `fail-on-failure` at its default to observe the verdict without gating on it. The step stays green and a failing run is surfaced as a warning annotation, while `result` and `batch-url` still carry the outcome for later steps:
+
+```yaml
+- uses: minitap-ai/minitest-trigger@v1
+  id: minitest
+  with:
+    app-slug: my-app
+    wait-for-result: true
+
+- run: echo "Verdict was ${{ steps.minitest.outputs.result }} — ${{ steps.minitest.outputs.batch-url }}"
+```
+
+`fail-on-failure: true` without `wait-for-result: true` is a configuration error and fails the step immediately: there is no verdict to fail on.
 
 ## Prerequisites
 
