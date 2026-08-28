@@ -33,6 +33,7 @@ The action talks to the Minitap testing-service (see `../testing-service` for th
 ## Commands
 
 ```bash
+npm test             # Vitest (src/**/*.test.ts)
 npm run build        # TypeScript compilation
 npm run bundle       # ncc bundle to dist/
 npm run lint         # ESLint
@@ -43,7 +44,7 @@ npm run all          # build + lint + format:check + bundle
 
 ## Workflows
 
-- **CI** (`.github/workflows/ci.yml`) — Runs on push/PR to main: lint, format check, tsc build, ncc bundle (compile check only, no dist commit)
+- **CI** (`.github/workflows/ci.yml`) — Runs on push/PR to main: lint, format check, tests, tsc build, ncc bundle (compile check only, no dist commit)
 - **Release** (`.github/workflows/release.yml`) — On GitHub Release publish: builds `dist/`, commits it to the release tag, updates the `v1` major version tag
 
 ## Release Process
