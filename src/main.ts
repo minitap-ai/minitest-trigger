@@ -18,8 +18,32 @@ import {
   validateAndroidBuild,
   validateIosBuild,
 } from './validate'
+import { waitForVerdict, type VerdictReached } from './wait-for-result'
 
 const DEFAULT_API_URL = 'https://testing-service.app.minitap.ai'
+
+function reportGateFailure(failOnFailure: boolean, message: string): void {
+  if (failOnFailure) {
+    core.setFailed(message)
+  } else {
+    core.warning(message)
+  }
+}
+
+function describeFailedRun(outcome: VerdictReached): string {
+  const { failedStories } = outcome
+  let message =
+    outcome.result === 'error'
+      ? 'The Minitest run errored before reaching a verdict.'
+      : failedStories.length
+        ? `The Minitest run failed — ${failedStories.length} failing ${failedStories.length === 1 ? 'story' : 'stories'}: ${failedStories.join(', ')}`
+        : 'The Minitest run failed.'
+
+  if (outcome.url) {
+    message += `\n${outcome.url}`
+  }
+  return message
+}
 
 async function run(): Promise<void> {
   try {
@@ -39,6 +63,9 @@ async function run(): Promise<void> {
     const apiUrl = core.getInput('api-url')
     const cancelPreviousRuns = core.getBooleanInput('cancel-previous-runs')
     const githubToken = core.getInput('github-token')
+    const waitForResult = core.getBooleanInput('wait-for-result')
+    const waitTimeoutMinutesRaw = core.getInput('wait-timeout-minutes')
+    const failOnFailure = core.getBooleanInput('fail-on-failure')
 
     const userStoryTypes = userStoryTypesRaw
       ? userStoryTypesRaw
@@ -58,6 +85,22 @@ async function run(): Promise<void> {
       throw new Error(
         '`user-story-types` and `user-stories` are mutually exclusive — provide only one.',
       )
+    }
+
+    if (failOnFailure && !waitForResult) {
+      throw new Error(
+        '`fail-on-failure` requires `wait-for-result: true` — without waiting for a verdict there is nothing to fail on.',
+      )
+    }
+
+    let waitTimeoutMinutes = 0
+    if (waitForResult) {
+      waitTimeoutMinutes = Number(waitTimeoutMinutesRaw)
+      if (!Number.isFinite(waitTimeoutMinutes) || waitTimeoutMinutes <= 0) {
+        throw new Error(
+          `\`wait-timeout-minutes\` must be a positive number (got "${waitTimeoutMinutesRaw}").`,
+        )
+      }
     }
 
     const scopeNormalized = scopeRaw ? scopeRaw.trim().toLowerCase() : undefined
@@ -244,6 +287,46 @@ async function run(): Promise<void> {
 
     core.setOutput('batch-id', result.batchId ?? '')
     core.setOutput('status', result.status)
+
+    if (!waitForResult) {
+      core.setOutput('result', '')
+      core.setOutput('batch-url', '')
+      return
+    }
+
+    // ── Wait for the verdict ─────────────────────────────────────────
+    const outcome = await waitForVerdict({
+      apiUrl,
+      token,
+      appSlug,
+      commitSha,
+      tenantId: tenantId || undefined,
+      timeoutMs: waitTimeoutMinutes * 60_000,
+    })
+
+    if (outcome.timedOut) {
+      core.setOutput('result', '')
+      core.setOutput('batch-url', outcome.url ?? '')
+      reportGateFailure(
+        failOnFailure,
+        `Timed out after ${waitTimeoutMinutes} minutes waiting for a verdict.${outcome.url ? `\n${outcome.url}` : ''}`,
+      )
+      return
+    }
+
+    core.setOutput('result', outcome.result)
+    core.setOutput('batch-url', outcome.url ?? '')
+
+    if (outcome.result === 'passed' || outcome.result === 'nothing_affected') {
+      core.info(
+        outcome.result === 'nothing_affected'
+          ? 'No scenario was impacted by this commit — nothing to run.'
+          : 'The Minitest run passed.',
+      )
+      return
+    }
+
+    reportGateFailure(failOnFailure, describeFailedRun(outcome))
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message)

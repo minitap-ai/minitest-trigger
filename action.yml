@@ -60,12 +60,28 @@ inputs:
     description: 'Cancel previous in-flight test batches for the same source branch when it matches the app''s release branch patterns. Has no effect on tag pushes or on branches that don''t match a configured release pattern.'
     required: false
     default: 'true'
+  wait-for-result:
+    description: 'Block until the run reaches a verdict instead of exiting immediately. Off by default: the action stays fire-and-forget unless you opt in.'
+    required: false
+    default: 'false'
+  wait-timeout-minutes:
+    description: 'How long to wait for a verdict when wait-for-result is enabled.'
+    required: false
+    default: '45'
+  fail-on-failure:
+    description: 'Fail the step when the run verdict is a failure. Requires wait-for-result.'
+    required: false
+    default: 'false'
 
 outputs:
   batch-id:
     description: 'The ID of the triggered test batch, empty when no batch was created (e.g. `pr-affected` found no impacted scenario)'
   status:
     description: 'Initial status of the triggered batch'
+  result:
+    description: 'The run verdict when wait-for-result is enabled: passed, failed, error or nothing_affected. Empty otherwise.'
+  batch-url:
+    description: 'Link to the run in the Minitest dashboard, when one was created.'
 
 runs:
   using: 'node20'
