@@ -3,6 +3,22 @@ import { getCiStatus, CiStatusError, type RunResult } from './api'
 
 const POLL_INTERVAL_MS = 15_000
 
+// A 4xx describes a request the server will never accept: an unregistered
+// route on a testing-service too old to serve the gate, an app slug or tenant
+// that does not resolve, a malformed SHA. Polling one of those to the end of
+// the timeout reaches the same answer an hour later, so only the two codes
+// that explicitly invite another attempt stay retryable.
+const RETRYABLE_CLIENT_ERRORS = new Set([408, 429])
+
+function isPermanentFailure(err: unknown): err is CiStatusError {
+  return (
+    err instanceof CiStatusError &&
+    err.statusCode >= 400 &&
+    err.statusCode < 500 &&
+    !RETRYABLE_CLIENT_ERRORS.has(err.statusCode)
+  )
+}
+
 export interface VerdictReached {
   timedOut: false
   result: RunResult
@@ -34,8 +50,8 @@ function sleep(ms: number): Promise<void> {
 /**
  * Poll the run status until it reaches a verdict or the timeout elapses.
  *
- * Transient poll failures are swallowed and retried; only a broken
- * authorization is fatal, since retrying it can never succeed.
+ * Transient poll failures are swallowed and retried; a client error is fatal,
+ * since retrying one can never succeed.
  */
 export async function waitForVerdict(
   options: WaitForVerdictOptions,
@@ -77,10 +93,7 @@ export async function waitForVerdict(
         }
       }
     } catch (err) {
-      if (
-        err instanceof CiStatusError &&
-        (err.statusCode === 401 || err.statusCode === 403)
-      ) {
+      if (isPermanentFailure(err)) {
         throw err
       }
       core.debug(
