@@ -280,6 +280,11 @@ async function run(): Promise<void> {
       commitSha,
       tenantId: tenantId || undefined,
       timeoutMs: waitTimeoutMinutes * 60_000,
+      // `token` above was minted before the run was even triggered and lasts
+      // roughly five minutes; a suite routinely takes forty. Without this the
+      // wait cannot outlive the credential, and `wait-timeout-minutes` is a
+      // promise the action cannot keep.
+      refreshToken: () => core.getIDToken(apiUrl),
     })
 
     reportVerdict(outcome, { failOnFailure, waitTimeoutMinutes })
