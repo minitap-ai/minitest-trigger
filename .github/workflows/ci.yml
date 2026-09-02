@@ -36,3 +36,9 @@ jobs:
 
       - name: Bundle with ncc
         run: npm run bundle
+
+      # ncc exits 0 when it cannot resolve a dependency, emitting a stub that
+      # throws at runtime. That shipped once (v2.5.1) and broke every consumer
+      # of the v2 tag, with every other job green.
+      - name: Verify the bundle loads
+        run: npm run verify:bundle

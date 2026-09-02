@@ -10,7 +10,8 @@
     "test": "vitest run",
     "format": "prettier --write 'src/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts'",
-    "all": "npm run build && npm run lint && npm run format:check && npm run bundle"
+    "all": "npm run build && npm run lint && npm run format:check && npm run bundle && npm run verify:bundle",
+    "verify:bundle": "node scripts/verify-bundle.mjs"
   },
   "keywords": [
     "github-action",
@@ -23,8 +24,8 @@
   "author": "Minitap",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^3.0.0",
-    "@actions/http-client": "^4.0.0"
+    "@actions/core": "^1.11.1",
+    "@actions/http-client": "^2.2.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",
