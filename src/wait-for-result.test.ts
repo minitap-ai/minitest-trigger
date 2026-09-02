@@ -156,3 +156,117 @@ describe('waitForVerdict', () => {
     },
   )
 })
+
+// ---------------------------------------------------------------------------
+// The OIDC token outliving the wait
+//
+// The token is minted before the run is triggered and GitHub gives it about
+// five minutes; a suite routinely takes forty. Treated as a permanent 4xx, the
+// resulting 401 failed the gate on a healthy run — it blocked two consecutive
+// production releases of the webapp, ~5m03s and ~5m10s after the token was
+// obtained. These pin the recovery and its limit.
+// ---------------------------------------------------------------------------
+
+const RUNNING = status({
+  state: 'running',
+  result: null,
+  batchId: 'batch-1',
+  appId: 'app-1',
+  appSlug: 'demo',
+  url: 'https://app.minitap.ai/runs/batch-1',
+  failedStories: [],
+})
+
+const UNAUTHORIZED = {
+  statusCode: 401,
+  body: JSON.stringify({
+    error: 'unauthorized',
+    message: 'GitHub OIDC token has expired (unauthorized)',
+  }),
+}
+
+describe('waitForVerdict — expired OIDC token', () => {
+  it('mints a new token and keeps waiting instead of failing the gate', async () => {
+    http.queue.push(UNAUTHORIZED, COMPLETED)
+    const refreshToken = vi.fn().mockResolvedValue('fresh-token')
+
+    const outcome = waitForVerdict({
+      apiUrl: 'https://api.example.com',
+      token: 'expired-token',
+      appSlug: 'demo',
+      commitSha: 'deadbeef',
+      timeoutMs: 60 * 60_000,
+      refreshToken,
+    })
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
+
+    await expect(outcome).resolves.toMatchObject({
+      timedOut: false,
+      result: 'passed',
+    })
+    expect(refreshToken).toHaveBeenCalledTimes(1)
+    // The retry carries the new credential, not the one that was just refused.
+    expect(http.requests[1]).toContain('deadbeef')
+  })
+
+  it('retries immediately rather than sleeping out another poll interval', async () => {
+    http.queue.push(UNAUTHORIZED, COMPLETED)
+    const refreshToken = vi.fn().mockResolvedValue('fresh-token')
+
+    const outcome = waitForVerdict({
+      apiUrl: 'https://api.example.com',
+      token: 'expired-token',
+      appSlug: 'demo',
+      commitSha: 'deadbeef',
+      timeoutMs: 60 * 60_000,
+      refreshToken,
+    })
+    // No timer advance at all: the refresh path must not wait.
+    await expect(outcome).resolves.toMatchObject({ result: 'passed' })
+  })
+
+  it('fails fast when a freshly minted token is also refused', async () => {
+    // A wrong audience, or a workflow without `id-token: write`. Polling that
+    // for the full hour reports a timeout instead of the real cause.
+    http.queue.push(UNAUTHORIZED, UNAUTHORIZED)
+    const refreshToken = vi.fn().mockResolvedValue('still-bad')
+
+    const outcome = waitForVerdict({
+      apiUrl: 'https://api.example.com',
+      token: 'expired-token',
+      appSlug: 'demo',
+      commitSha: 'deadbeef',
+      timeoutMs: 60 * 60_000,
+      refreshToken,
+    })
+
+    await expect(outcome).rejects.toBeInstanceOf(CiStatusError)
+    expect(refreshToken).toHaveBeenCalledTimes(1)
+  })
+
+  it('still fails on 401 when no refresh is available', async () => {
+    http.queue.push(UNAUTHORIZED)
+
+    await expect(wait()).rejects.toBeInstanceOf(CiStatusError)
+  })
+
+  it('allows a second refresh after a poll succeeds in between', async () => {
+    // A wait long enough to outlive two tokens must survive both, so the
+    // one-shot guard has to reset on every successful poll.
+    http.queue.push(UNAUTHORIZED, RUNNING, UNAUTHORIZED, COMPLETED)
+    const refreshToken = vi.fn().mockResolvedValue('fresh-token')
+
+    const outcome = waitForVerdict({
+      apiUrl: 'https://api.example.com',
+      token: 'expired-token',
+      appSlug: 'demo',
+      commitSha: 'deadbeef',
+      timeoutMs: 60 * 60_000,
+      refreshToken,
+    })
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3)
+
+    await expect(outcome).resolves.toMatchObject({ result: 'passed' })
+    expect(refreshToken).toHaveBeenCalledTimes(2)
+  })
+})
