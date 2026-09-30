@@ -24,8 +24,8 @@
   "author": "Minitap",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.11.1",
-    "@actions/http-client": "^2.2.3"
+    "@actions/core": "^2.0.3",
+    "@actions/http-client": "^3.0.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",
