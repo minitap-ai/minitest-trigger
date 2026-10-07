@@ -7,19 +7,22 @@ const POLL_INTERVAL_MS = 15_000
 const http = vi.hoisted(() => ({
   queue: [] as Array<{ statusCode: number; body: string }>,
   requests: [] as string[],
+  handler: undefined as
+    ((url: string) => { statusCode: number; body: string }) | undefined,
 }))
 
 vi.mock('@actions/http-client', () => ({
   HttpClient: class {
     async get(url: string) {
       http.requests.push(url)
-      const next = http.queue.shift() ?? {
-        statusCode: 403,
-        body: JSON.stringify({
-          error: 'test',
-          message: 'unexpected extra poll',
-        }),
-      }
+      const next = http.handler?.(url) ??
+        http.queue.shift() ?? {
+          statusCode: 403,
+          body: JSON.stringify({
+            error: 'test',
+            message: 'unexpected extra poll',
+          }),
+        }
       return {
         message: { statusCode: next.statusCode },
         readBody: async () => next.body,
@@ -54,7 +57,7 @@ function wait() {
     apiUrl: 'https://api.example.com',
     token: 'token',
     appSlug: 'demo',
-    commitSha: 'deadbeef',
+    batchId: 'batch-1',
     timeoutMs: 60 * 60_000,
   })
 }
@@ -62,6 +65,7 @@ function wait() {
 beforeEach(() => {
   http.queue.length = 0
   http.requests.length = 0
+  http.handler = undefined
   // The loop sleeps POLL_INTERVAL_MS between polls; real timers would make
   // every multi-poll case take 15s.
   vi.useFakeTimers()
@@ -72,6 +76,69 @@ afterEach(() => {
 })
 
 describe('waitForVerdict', () => {
+  it.each([
+    ['phone', 'tablet'],
+    ['tablet', 'phone'],
+  ] as const)(
+    'keeps same-commit verdicts separate when %s completes before %s',
+    async (first, last) => {
+      const results = { phone: 'passed', tablet: 'failed' } as const
+      const completed = new Set<string>()
+      let latest: 'phone' | 'tablet' = first
+      http.handler = (url) => {
+        const query = new URL(url).searchParams
+        const selected = query.get('launch_intent_id')
+        const device =
+          selected === 'phone-intent'
+            ? 'phone'
+            : selected === 'tablet-intent'
+              ? 'tablet'
+              : latest
+        const done = completed.has(device)
+        return status({
+          state: done ? 'completed' : 'pending',
+          result: done ? results[device] : null,
+          batchId: done ? `${device}-batch` : null,
+          appId: 'app-1',
+          appSlug: 'demo',
+          url: done ? `https://app.minitap.ai/runs/${device}-batch` : null,
+          failedStories: done && device === 'tablet' ? ['Tablet checkout'] : [],
+        })
+      }
+      const launch = (device: 'phone' | 'tablet') =>
+        waitForVerdict({
+          apiUrl: 'https://api.example.com',
+          token: 'token',
+          appSlug: 'demo',
+          launchIntentId: `${device}-intent`,
+          timeoutMs: 60_000,
+        })
+      const outcomes = { phone: launch('phone'), tablet: launch('tablet') }
+
+      completed.add(first)
+      latest = first
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
+      await expect(outcomes[first]).resolves.toMatchObject({
+        result: results[first],
+        batchId: `${first}-batch`,
+      })
+
+      completed.add(last)
+      latest = last
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
+      await expect(outcomes[last]).resolves.toMatchObject({
+        result: results[last],
+        batchId: `${last}-batch`,
+      })
+      expect(new Set(http.requests)).toEqual(
+        new Set([
+          'https://api.example.com/api/v1/ci/status?app_slug=demo&launch_intent_id=phone-intent',
+          'https://api.example.com/api/v1/ci/status?app_slug=demo&launch_intent_id=tablet-intent',
+        ]),
+      )
+    },
+  )
+
   it('polls until the run completes, then returns that verdict', async () => {
     http.queue.push(
       status({
@@ -194,7 +261,7 @@ describe('waitForVerdict — expired OIDC token', () => {
       apiUrl: 'https://api.example.com',
       token: 'expired-token',
       appSlug: 'demo',
-      commitSha: 'deadbeef',
+      batchId: 'batch-1',
       timeoutMs: 60 * 60_000,
       refreshToken,
     })
@@ -205,8 +272,7 @@ describe('waitForVerdict — expired OIDC token', () => {
       result: 'passed',
     })
     expect(refreshToken).toHaveBeenCalledTimes(1)
-    // The retry carries the new credential, not the one that was just refused.
-    expect(http.requests[1]).toContain('deadbeef')
+    expect(http.requests[1]).toContain('batch_id=batch-1')
   })
 
   it('retries immediately rather than sleeping out another poll interval', async () => {
@@ -217,7 +283,7 @@ describe('waitForVerdict — expired OIDC token', () => {
       apiUrl: 'https://api.example.com',
       token: 'expired-token',
       appSlug: 'demo',
-      commitSha: 'deadbeef',
+      batchId: 'batch-1',
       timeoutMs: 60 * 60_000,
       refreshToken,
     })
@@ -235,7 +301,7 @@ describe('waitForVerdict — expired OIDC token', () => {
       apiUrl: 'https://api.example.com',
       token: 'expired-token',
       appSlug: 'demo',
-      commitSha: 'deadbeef',
+      batchId: 'batch-1',
       timeoutMs: 60 * 60_000,
       refreshToken,
     })
@@ -260,7 +326,7 @@ describe('waitForVerdict — expired OIDC token', () => {
       apiUrl: 'https://api.example.com',
       token: 'expired-token',
       appSlug: 'demo',
-      commitSha: 'deadbeef',
+      batchId: 'batch-1',
       timeoutMs: 60 * 60_000,
       refreshToken,
     })

@@ -26,6 +26,12 @@ inputs:
     description: 'Run tests on Android. When true and no `android-build-path` is provided, Minitest builds the app for you. Defaults to true.'
     required: false
     default: 'true'
+  ios-device-type:
+    description: 'Optional native cloud iOS form factor: phone or tablet. Omitted means phone. Requires run-ios: true; does not enable the iOS lane.'
+    required: false
+  android-device-type:
+    description: 'Optional native cloud Android form factor: phone or tablet. Omitted means phone. Requires run-android: true; does not enable the Android lane.'
+    required: false
   ios-build-path:
     description: 'Optional path to a pre-built iOS simulator build (.app directory or .ipa file). When omitted with `run-ios: true`, Minitest builds the app.'
     required: false

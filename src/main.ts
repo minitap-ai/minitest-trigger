@@ -14,6 +14,7 @@ import { resolvePrHeadSha } from './commit-sha'
 import { resolveIssueCommentPrContext } from './pr-context'
 import { parseWebTargets } from './web-targets'
 import {
+  parseDeviceType,
   validateRunFlags,
   validateAndroidBuild,
   validateIosBuild,
@@ -33,6 +34,14 @@ async function run(): Promise<void> {
     const runIos = core.getBooleanInput('run-ios')
     const runAndroid = core.getBooleanInput('run-android')
     const runWeb = core.getBooleanInput('run-web')
+    const iosDeviceType = parseDeviceType(
+      core.getInput('ios-device-type'),
+      'ios-device-type',
+    )
+    const androidDeviceType = parseDeviceType(
+      core.getInput('android-device-type'),
+      'android-device-type',
+    )
     const iosBuildPath = core.getInput('ios-build-path')
     const androidBuildPath = core.getInput('android-build-path')
     const webTargetsRaw = core.getInput('web-targets')
@@ -95,6 +104,16 @@ async function run(): Promise<void> {
     const webTargets = parsedWebTargets?.length ? parsedWebTargets : undefined
     const wantWeb = runWeb || webTargets !== undefined
 
+    validateRunFlags({
+      runIos,
+      runAndroid,
+      wantWeb,
+      iosBuildPath,
+      androidBuildPath,
+      iosDeviceType,
+      androidDeviceType,
+    })
+
     // Build the platforms array forwarded to the server. Omitted only when
     // both native platforms are enabled and the web lane is off (the default),
     // so the server's "both natives, web when configured" default applies.
@@ -127,15 +146,6 @@ async function run(): Promise<void> {
 
     // ── Resolve commit title ────────────────────────────────────────
     const commitTitle = getCommitTitle()
-
-    // ── Validate run-flag / build-path combination ───────────────────
-    validateRunFlags({
-      runIos,
-      runAndroid,
-      wantWeb,
-      iosBuildPath,
-      androidBuildPath,
-    })
 
     let iosUploadPath: string | undefined
     const resolvedIosBuildPath = iosBuildPath
@@ -242,6 +252,8 @@ async function run(): Promise<void> {
       platforms,
       iosBuildId,
       androidBuildId,
+      iosDeviceType,
+      androidDeviceType,
       webTargets: wantWeb ? webTargets : undefined,
       webUrl: wantWeb ? webUrl.trim() || undefined : undefined,
       tenantId: tenantId || undefined,
@@ -254,7 +266,11 @@ async function run(): Promise<void> {
 
     core.info('────────────────────────────────────────────')
     if (result.batchId === null) {
-      core.info('Request accepted, but there was no scenario to run.')
+      core.info(
+        result.launchIntentId
+          ? `Waiting for launch: ${result.launchIntentId}`
+          : 'Request accepted without a batch.',
+      )
     } else {
       core.info(`Test run triggered successfully!`)
       core.info(`Batch ID: ${result.batchId}`)
@@ -272,21 +288,43 @@ async function run(): Promise<void> {
       return
     }
 
-    // ── Wait for the verdict ─────────────────────────────────────────
+    const selector = result.batchId
+      ? { batchId: result.batchId }
+      : result.launchIntentId
+        ? { launchIntentId: result.launchIntentId }
+        : null
+    if (!selector) {
+      if (result.warnings?.includes('nothing_affected')) {
+        reportVerdict(
+          {
+            timedOut: false,
+            result: 'nothing_affected',
+            batchId: null,
+            url: null,
+            failedStories: [],
+          },
+          { failOnFailure, waitTimeoutMinutes },
+        )
+        return
+      }
+      core.setOutput('result', '')
+      core.setOutput('batch-url', '')
+      throw new Error(
+        'Run verdict unavailable: the server returned no immutable batchId or launchIntentId. Upgrade testing-service; analysis progress or the latest commit cannot identify this execution.',
+      )
+    }
+
     const outcome = await waitForVerdict({
+      ...selector,
       apiUrl,
       token,
       appSlug,
-      commitSha,
       tenantId: tenantId || undefined,
       timeoutMs: waitTimeoutMinutes * 60_000,
-      // `token` above was minted before the run was even triggered and lasts
-      // roughly five minutes; a suite routinely takes forty. Without this the
-      // wait cannot outlive the credential, and `wait-timeout-minutes` is a
-      // promise the action cannot keep.
       refreshToken: () => core.getIDToken(apiUrl),
     })
 
+    if (!outcome.timedOut) core.setOutput('batch-id', outcome.batchId ?? '')
     reportVerdict(outcome, { failOnFailure, waitTimeoutMinutes })
   } catch (error) {
     if (error instanceof Error) {

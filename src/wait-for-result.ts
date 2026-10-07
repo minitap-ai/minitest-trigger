@@ -1,5 +1,10 @@
 import * as core from '@actions/core'
-import { getCiStatus, CiStatusError, type RunResult } from './api'
+import {
+  getCiStatus,
+  CiStatusError,
+  type CiRunSelector,
+  type RunResult,
+} from './api'
 
 const POLL_INTERVAL_MS = 15_000
 
@@ -53,11 +58,10 @@ export interface VerdictTimedOut {
 
 export type WaitOutcome = VerdictReached | VerdictTimedOut
 
-export interface WaitForVerdictOptions {
+export type WaitForVerdictOptions = CiRunSelector & {
   apiUrl: string
   token: string
   appSlug: string
-  commitSha: string
   tenantId?: string
   timeoutMs: number
   /**
@@ -83,8 +87,7 @@ function sleep(ms: number): Promise<void> {
 export async function waitForVerdict(
   options: WaitForVerdictOptions,
 ): Promise<WaitOutcome> {
-  const { apiUrl, appSlug, commitSha, tenantId, timeoutMs, refreshToken } =
-    options
+  const { apiUrl, timeoutMs, refreshToken } = options
   const deadline = Date.now() + timeoutMs
 
   let token = options.token
@@ -101,11 +104,7 @@ export async function waitForVerdict(
 
   while (Date.now() < deadline) {
     try {
-      const status = await getCiStatus(apiUrl, token, {
-        appSlug,
-        commitSha,
-        tenantId,
-      })
+      const status = await getCiStatus(apiUrl, token, options)
 
       lastUrl = status.url ?? lastUrl
       // The token just worked, so the next rejection is an expiry rather than

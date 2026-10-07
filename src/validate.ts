@@ -3,23 +3,41 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import { execFileSync } from 'child_process'
+import type { DeviceType } from './api'
 
-/**
- * Validate the run-flags / build-path input combination.
- *
- * Rules:
- *  1. At least one lane (iOS, Android, or web) must be active.
- *  2. A build path can only be supplied for a platform that is enabled —
- *     otherwise the artifact would be uploaded but never tested.
- */
+export function parseDeviceType(
+  input: string,
+  inputName: 'ios-device-type' | 'android-device-type',
+): DeviceType | undefined {
+  if (!input) return undefined
+  if (input === 'phone' || input === 'tablet') return input
+  throw new Error(
+    `\`${inputName}\` must be "phone" or "tablet" (got "${input}").`,
+  )
+}
+
 export function validateRunFlags(opts: {
   runIos: boolean
   runAndroid: boolean
   wantWeb: boolean
   iosBuildPath: string
   androidBuildPath: string
+  iosDeviceType?: DeviceType
+  androidDeviceType?: DeviceType
 }): void {
   const { runIos, runAndroid, wantWeb, iosBuildPath, androidBuildPath } = opts
+
+  for (const [platform, enabled, deviceType] of [
+    ['ios', runIos, opts.iosDeviceType],
+    ['android', runAndroid, opts.androidDeviceType],
+  ] as const) {
+    if (!enabled && deviceType !== undefined) {
+      throw new Error(
+        `\`${platform}-device-type\` was provided but \`run-${platform}\` is false.\n` +
+          `  Either set \`run-${platform}: true\` or remove \`${platform}-device-type\`.`,
+      )
+    }
+  }
 
   if (!runIos && !runAndroid && !wantWeb) {
     throw new Error(

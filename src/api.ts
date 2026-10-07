@@ -128,6 +128,7 @@ interface UploadResponse {
 }
 
 export type Platform = 'ios' | 'android' | 'web'
+export type DeviceType = 'phone' | 'tablet'
 
 /**
  * Which scenarios a run covers: `affected` (impacted since the last release, on
@@ -151,7 +152,7 @@ export interface WebTargetSpec {
   viewport?: 'tablet' | 'pc'
 }
 
-interface TriggerRunRequest {
+export interface CIRunRequest {
   appSlug: string
   commitTitle: string
   /**
@@ -169,6 +170,9 @@ interface TriggerRunRequest {
   platforms?: Platform[]
   iosBuildId?: string
   androidBuildId?: string
+  /** Native cloud form factors; omitted means phone, not an app-level default. */
+  iosDeviceType?: DeviceType
+  androidDeviceType?: DeviceType
   /**
    * Explicit web targets. When omitted while the web lane is active, the
    * server expands the app's configured default web targets.
@@ -197,11 +201,14 @@ interface TriggerRunRequest {
 interface TriggerRunResponse {
   /** Null when the server accepted the request without creating a batch. */
   batchId: string | null
+  maintenanceRunId?: string | null
+  launchIntentId?: string | null
   status: string
   appId: string
   appSlug: string
   /** Non-fatal notices about how the server interpreted the request. */
   warnings?: string[] | null
+  compatibilityWarnings?: string[] | null
 }
 
 interface UploadBuildOptions {
@@ -338,7 +345,7 @@ export async function uploadBuild(
 export async function triggerRun(
   apiUrl: string,
   token: string,
-  request: TriggerRunRequest,
+  request: CIRunRequest,
 ): Promise<TriggerRunResponse> {
   const url = `${apiUrl}/api/v1/ci/run`
   const body = JSON.stringify(request)
@@ -364,7 +371,10 @@ export async function triggerRun(
 
   // Surface non-fatal notices as GitHub Annotations so they appear on the
   // workflow summary alongside the run results.
-  for (const warning of data.warnings ?? []) {
+  for (const warning of new Set([
+    ...(data.warnings ?? []),
+    ...(data.compatibilityWarnings ?? []),
+  ])) {
     core.warning(warning, { title: 'Minitest' })
   }
 
@@ -388,9 +398,12 @@ interface CiStatusResponse {
   failedStories: string[]
 }
 
-interface CiStatusRequest {
+export type CiRunSelector =
+  | { batchId: string; launchIntentId?: never }
+  | { batchId?: never; launchIntentId: string }
+
+type CiStatusRequest = CiRunSelector & {
   appSlug: string
-  commitSha: string
   tenantId?: string
 }
 
@@ -405,20 +418,23 @@ export class CiStatusError extends Error {
   }
 }
 
-/**
- * Fetch the current verdict of the run for a commit.
- *
- * Stays silent, unlike `triggerRun` — it is called on a polling loop.
- */
 export async function getCiStatus(
   apiUrl: string,
   token: string,
   request: CiStatusRequest,
 ): Promise<CiStatusResponse> {
+  if (Boolean(request.batchId) === Boolean(request.launchIntentId)) {
+    throw new CiStatusError(
+      'Run verdict unavailable: exactly one batchId or launchIntentId is required; commit-only polling is unsafe.',
+      422,
+    )
+  }
   const query = new URLSearchParams({
     app_slug: request.appSlug,
-    commit_sha: request.commitSha,
   })
+  if (request.batchId) query.set('batch_id', request.batchId)
+  if (request.launchIntentId)
+    query.set('launch_intent_id', request.launchIntentId)
   if (request.tenantId) {
     query.set('tenant_id', request.tenantId)
   }
@@ -441,7 +457,14 @@ export async function getCiStatus(
     )
   }
 
-  return JSON.parse(responseBody) as CiStatusResponse
+  const status = JSON.parse(responseBody) as CiStatusResponse
+  if (request.batchId && status.batchId !== request.batchId) {
+    throw new CiStatusError(
+      'Run verdict unavailable: the status response does not match the requested batch.',
+      409,
+    )
+  }
+  return status
 }
 
 function formatBytes(bytes: number): string {
