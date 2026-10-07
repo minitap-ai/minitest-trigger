@@ -35,6 +35,8 @@ jobs:
 | `app-slug`           | Yes      | —                                        | The Minitest app slug to test                                                |
 | `run-ios`            | No       | `true`                                   | Run tests on iOS. Minitest builds the app when no `ios-build-path` is given. |
 | `run-android`        | No       | `true`                                   | Run tests on Android. Minitest builds the app when no path is given.         |
+| `ios-device-type`    | No       | Omitted (phone)                          | Native cloud iOS form factor: `phone` or `tablet`. Requires `run-ios: true`; does not select a lane. |
+| `android-device-type` | No     | Omitted (phone)                          | Native cloud Android form factor: `phone` or `tablet`. Requires `run-android: true`; does not select a lane. |
 | `ios-build-path`     | No       | —                                        | Pre-built iOS bundle (`.app` directory or `.ipa` file). Optional.            |
 | `android-build-path` | No       | —                                        | Pre-built Android `.apk` (must target x86-64). Optional.                     |
 | `run-web`            | No       | `false`                                  | Run the web lane. For a web app linked to a GitHub repo, Minitest builds and serves the commit this workflow runs on (no `web-url` needed); otherwise it tests the app's configured web URL. See [Web runs](#web-runs). |
@@ -51,6 +53,24 @@ jobs:
 | `fail-on-failure`      | No     | `false`                                  | Fail the step when the verdict is a failure. Requires `wait-for-result: true`. |
 
 > By default, Minitest builds your app for both platforms. Set `run-ios: false` or `run-android: false` to skip a platform, or supply a `*-build-path` to use a build you've already produced.
+
+## Native Tablet Runs
+
+Set `ios-device-type: tablet` to test your native app on a cloud iPad simulator, or `android-device-type: tablet` for a cloud Android tablet emulator. These inputs configure only an already-selected native cloud lane, not web/mobile-web targets, physical devices, or Edge executors. They do not enable an OS on their own: providing either `phone` or `tablet` while the corresponding `run-ios` / `run-android` is `false` is an error.
+
+Omitting a device-type input keeps the legacy phone behavior and omits that field from the API request. The inputs do not change the app's defaults. V1 supports **one form factor per OS per run**; to test both phones and tablets on the same OS, invoke the action in separate jobs or runs.
+
+With `wait-for-result`, each job follows its returned `batchId`, or its immutable `launchIntentId` when execution is deferred, via `batch_id` / `launch_intent_id` status queries. `maintenanceRunId` identifies the shared commit analysis, not an execution, and is never used to obtain a test verdict. Separate phone and tablet jobs on the same commit therefore report their own verdicts, regardless of completion order. Missing execution handles produce an unavailable verdict rather than a latest-commit fallback. Only the exact `nothing_affected` warning confirms a no-op that passes without polling.
+
+For native iPad runs, an iPhone-only build may run in compatibility mode (`tablet_iphone_compatibility_mode` warning). Missing or unreadable device-family metadata produces `tablet_compatibility_unknown`. Neither warning blocks launch, and neither run establishes native tablet-layout coverage. The action forwards server warnings; GitHub checks and PR comments use the server's central device labels.
+
+```yaml
+- uses: minitap-ai/minitest-trigger@v1
+  with:
+    app-slug: my-app
+    ios-device-type: tablet
+    android-device-type: tablet
+```
 
 ## Outputs
 
