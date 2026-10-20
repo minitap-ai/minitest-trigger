@@ -150,16 +150,20 @@ For a web app linked to a GitHub repo (set in App Settings), the web lane builds
 
 `web-targets` is a comma-separated list of `<browser>:<viewport>` tokens. The action maps each token to a target:
 
-| Token             | Runs as                     |
-| ----------------- | --------------------------- |
-| `safari:mobile`   | iOS Safari (mobile web)     |
-| `chrome:mobile`   | Android Chrome (mobile web) |
-| `chrome:tablet`   | Tablet web (Chrome)         |
-| `firefox:tablet`  | Tablet web (Firefox)        |
-| `chrome:desktop`  | Desktop web (Chrome)        |
-| `firefox:desktop` | Desktop web (Firefox)       |
+| Token             | Runs as                      |
+| ----------------- | ---------------------------- |
+| `safari:mobile`   | iOS Safari (mobile web)      |
+| `chrome:mobile`   | Android Chrome (mobile web)  |
+| `chrome:tablet`   | Tablet web (Chrome)          |
+| `firefox:tablet`  | Tablet web (Firefox)         |
+| `edge:tablet`     | Tablet web (Microsoft Edge)  |
+| `chrome:desktop`  | Desktop web (Chrome)         |
+| `firefox:desktop` | Desktop web (Firefox)        |
+| `edge:desktop`    | Desktop web (Microsoft Edge) |
 
-Other combinations (such as `firefox:mobile` or `safari:desktop`) are rejected with a clear error.
+Other combinations (such as `firefox:mobile`, `edge:mobile` or `safari:desktop`) are rejected with a clear error.
+
+Microsoft Edge is in early access and is enabled per workspace on request. Until it is enabled for yours, Minitest rejects a run with an `edge` target (HTTP 422).
 
 ## Examples
 
