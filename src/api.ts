@@ -148,7 +148,7 @@ export type RunScope = (typeof RUN_SCOPES)[number]
  */
 export interface WebTargetSpec {
   platform: Platform
-  browser: 'chrome' | 'firefox' | 'safari'
+  browser: 'chrome' | 'firefox' | 'edge' | 'safari'
   viewport?: 'tablet' | 'pc'
 }
 

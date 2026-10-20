@@ -28,7 +28,7 @@ function parseWebTargetToken(token: string): WebTargetSpec {
   if (browser === 'chrome' && viewport === 'mobile') {
     return { platform: 'android', browser: 'chrome' }
   }
-  if (browser === 'chrome' || browser === 'firefox') {
+  if (browser === 'chrome' || browser === 'firefox' || browser === 'edge') {
     if (viewport === 'tablet') {
       return { platform: 'web', browser, viewport: 'tablet' }
     }
@@ -39,6 +39,6 @@ function parseWebTargetToken(token: string): WebTargetSpec {
 
   throw new Error(
     `Unsupported web target "${token}".\n` +
-      '  Valid targets: `chrome:desktop`, `firefox:desktop`, `chrome:tablet`, `firefox:tablet`, `chrome:mobile` (Android), `safari:mobile` (iOS).',
+      '  Valid targets: `chrome:desktop`, `firefox:desktop`, `edge:desktop`, `chrome:tablet`, `firefox:tablet`, `edge:tablet`, `chrome:mobile` (Android), `safari:mobile` (iOS).',
   )
 }
