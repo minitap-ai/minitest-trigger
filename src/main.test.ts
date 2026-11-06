@@ -1,9 +1,12 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { IncomingMessage } from 'node:http'
 import { Socket } from 'node:net'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as core from '@actions/core'
 import { HttpClient, HttpClientResponse } from '@actions/http-client'
+import { platformTotals, resultRows } from './summary'
 
 vi.mock('@actions/core', async (importOriginal) => ({
   ...(await importOriginal<typeof core>()),
@@ -510,3 +513,223 @@ describe('waiting for the exact launched run', () => {
     ).toEqual(['POST', 'GET'])
   })
 })
+
+describe('run targets', () => {
+  const TWO_IPHONES = 'platform=ios,os=26\nplatform=ios,os=27\n'
+
+  function posts(): Record<string, unknown>[] {
+    return vi
+      .mocked(HttpClient.prototype.request)
+      .mock.calls.filter(
+        ([method, url]) => method === 'POST' && url.endsWith('/ci/run'),
+      )
+      .map(([, , body]) => JSON.parse(body as string))
+  }
+
+  it('sends every target with the uploaded build and none of the per-platform fields', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'trigger-'))
+    const ipa = join(dir, 'App.ipa')
+    writeFileSync(ipa, 'ipa')
+    input(
+      'targets',
+      `${TWO_IPHONES}platform=web,browser=chrome,version=157,viewport=desktop`,
+    )
+    input('ios-build-path', ipa)
+    vi.mocked(HttpClient.prototype.request).mockImplementation(
+      async (_method, url) =>
+        url.endsWith('/ci/builds/upload')
+          ? response({ buildId: 'ios-build', platform: 'ios', appId: 'app-1' })
+          : response({
+              batchId: 'batch-1',
+              status: 'pending',
+              appId: 'app-1',
+              appSlug: 'my-app',
+            }),
+    )
+
+    await runAction()
+
+    expect(core.setFailed).not.toHaveBeenCalled()
+    expect(posts()).toEqual([
+      {
+        appSlug: 'my-app',
+        commitTitle: 'Test native form factors',
+        commitSha: 'commit-sha',
+        cancelPreviousRuns: true,
+        targets: [
+          { platform: 'ios', osVersion: '26', buildId: 'ios-build' },
+          { platform: 'ios', osVersion: '27', buildId: 'ios-build' },
+          {
+            platform: 'web',
+            browser: 'chrome',
+            browserVersionRequested: '157',
+            viewport: 'pc',
+          },
+        ],
+      },
+    ])
+    expect(JSON.parse(outputs().targets)).toEqual([
+      {
+        label: 'iPhone · iOS 26',
+        platform: 'ios',
+        status: 'queued',
+        criticals: 0,
+        warnings: 0,
+      },
+      {
+        label: 'iPhone · iOS 27',
+        platform: 'ios',
+        status: 'queued',
+        criticals: 0,
+        warnings: 0,
+      },
+      {
+        label: 'Chrome 157 · Desktop',
+        platform: 'web',
+        status: 'queued',
+        criticals: 0,
+        warnings: 0,
+      },
+    ])
+  })
+
+  it.each([
+    ['ios-device-type', 'tablet', '`targets` replaces `ios-device-type`'],
+    ['web-targets', 'chrome:desktop', '`targets` replaces `web-targets`'],
+    ['run-web', 'true', '`targets` replaces `run-web: true`'],
+    ['run-ios', 'false', '`run-ios` is false but `targets` has a ios line'],
+    [
+      'android-build-path',
+      'app.apk',
+      '`android-build-path` was provided but `targets` has no android line',
+    ],
+  ])(
+    'refuses %s=%s next to targets before any network call',
+    async (name, value, message) => {
+      input('targets', TWO_IPHONES)
+      input(name, value)
+
+      await runAction()
+
+      expect(core.setFailed).toHaveBeenCalledWith(
+        expect.stringContaining(message),
+      )
+      expect(HttpClient.prototype.request).not.toHaveBeenCalled()
+    },
+  )
+
+  it('refuses one iOS build for both a simulator and a farm iPhone', async () => {
+    input(
+      'targets',
+      'platform=ios,os=27\nplatform=ios,backend=physical,model=iPhone 13',
+    )
+    input('ios-build-path', 'App.ipa')
+
+    await runAction()
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '`ios-build-path` cannot fill both the cloud and the physical ios targets',
+      ),
+    )
+    expect(HttpClient.prototype.request).not.toHaveBeenCalled()
+  })
+
+  it('explains the refusal of several devices on a workspace without the flag', async () => {
+    input('targets', TWO_IPHONES)
+    vi.mocked(HttpClient.prototype.request).mockResolvedValue(
+      response(
+        {
+          error: 'http_error',
+          message:
+            "Several native targets on 'ios' are not available for this workspace yet",
+        },
+        422,
+      ),
+    )
+
+    await runAction()
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "Trigger run failed: Several native targets on 'ios' are not available for this workspace yet (http_error)\n" +
+        '  This workspace runs one device per platform. Keep one `ios` and one `android` line in `targets`, or ask Minitap to enable several devices per platform.',
+    )
+  })
+
+  it('lists each target with its counts and totals per platform once the run ends', async () => {
+    input('targets', TWO_IPHONES)
+    input('wait-for-result', 'true')
+    const target = (
+      osVersion: string,
+      criticals: number,
+      warnings: number,
+    ) => ({
+      platform: 'ios',
+      backend: 'cloud',
+      deviceType: 'phone',
+      deviceModels: null,
+      osVersion,
+      browser: null,
+      browserVersion: null,
+      viewport: null,
+      status: criticals ? 'critical' : 'passed',
+      criticals,
+      warnings,
+      passed: 3,
+    })
+    vi.mocked(HttpClient.prototype.request).mockImplementation(
+      async (method) =>
+        method === 'POST'
+          ? response({
+              batchId: 'batch-1',
+              status: 'pending',
+              appId: 'app-1',
+              appSlug: 'my-app',
+            })
+          : response({
+              state: 'completed',
+              result: 'failed',
+              batchId: 'batch-1',
+              appId: 'app-1',
+              appSlug: 'my-app',
+              url: 'https://app.minitap.ai/runs/batch-1',
+              failedStories: ['Checkout'],
+              targets: [target('26', 0, 1), target('27', 2, 0)],
+            }),
+    )
+
+    await runAction()
+
+    expect(JSON.parse(outputs().targets)).toEqual([
+      {
+        label: 'iPhone · iOS 26',
+        platform: 'ios',
+        status: 'passed',
+        criticals: 0,
+        warnings: 1,
+      },
+      {
+        label: 'iPhone · iOS 27',
+        platform: 'ios',
+        status: 'critical',
+        criticals: 2,
+        warnings: 0,
+      },
+    ])
+    expect(core.info).toHaveBeenCalledWith(
+      '  iPhone · iOS 27: critical (2 critical · 0 warnings)',
+    )
+    expect(
+      platformTotals(
+        resultRows([target('26', 0, 1), target('27', 2, 0)] as never),
+      ),
+    ).toEqual(['iOS: 2 critical · 1 warning'])
+  })
+})
+
+function outputs(): Record<string, string> {
+  return Object.fromEntries(vi.mocked(core.setOutput).mock.calls) as Record<
+    string,
+    string
+  >
+}

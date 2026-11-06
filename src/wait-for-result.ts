@@ -3,6 +3,7 @@ import {
   getCiStatus,
   CiStatusError,
   type CiRunSelector,
+  type CiTargetStatus,
   type RunResult,
 } from './api'
 
@@ -49,6 +50,7 @@ export interface VerdictReached {
   batchId: string | null
   url: string | null
   failedStories: string[]
+  targets?: CiTargetStatus[]
 }
 
 export interface VerdictTimedOut {
@@ -125,6 +127,7 @@ export async function waitForVerdict(
           batchId: status.batchId,
           url: status.url,
           failedStories: status.failedStories ?? [],
+          targets: status.targets,
         }
       }
     } catch (err) {

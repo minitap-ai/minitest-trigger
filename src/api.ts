@@ -152,6 +152,19 @@ export interface WebTargetSpec {
   viewport?: 'tablet' | 'pc'
 }
 
+/** One target of the run, in the shape of `targets` on batch creation. */
+export interface RunTarget {
+  platform: Platform
+  backend?: 'physical'
+  buildId?: string
+  deviceType?: 'phone' | 'tablet' | 'tv'
+  deviceModels?: string[]
+  osVersion?: string
+  browser?: 'chrome' | 'edge' | 'firefox'
+  browserVersionRequested?: string
+  viewport?: 'pc' | 'tablet' | 'mobile'
+}
+
 export interface CIRunRequest {
   appSlug: string
   commitTitle: string
@@ -180,6 +193,8 @@ export interface CIRunRequest {
   webTargets?: WebTargetSpec[]
   /** Per-run web URL override (e.g. a PR preview deployment). */
   webUrl?: string
+  /** Every target of the run; replaces `platforms`, the build ids, device types and `webTargets`. */
+  targets?: RunTarget[]
   tenantId?: string
   prNumber?: number
   prTitle?: string
@@ -339,6 +354,16 @@ export async function uploadBuild(
   return data.buildId
 }
 
+export class TriggerRunError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number,
+  ) {
+    super(message)
+    this.name = 'TriggerRunError'
+  }
+}
+
 /**
  * Trigger a test run batch via the Minitap CI API.
  */
@@ -362,8 +387,9 @@ export async function triggerRun(
   const responseBody = await response.readBody()
 
   if (statusCode < 200 || statusCode >= 300) {
-    throw new Error(
+    throw new TriggerRunError(
       formatApiError('Trigger run failed', statusCode, responseBody),
+      statusCode,
     )
   }
 
@@ -396,6 +422,23 @@ interface CiStatusResponse {
   appSlug: string
   url: string | null
   failedStories: string[]
+  /** One entry per target of the batch; absent on servers older than run targets. */
+  targets?: CiTargetStatus[]
+}
+
+export interface CiTargetStatus {
+  platform: Platform
+  backend: string
+  deviceType: string | null
+  deviceModels: string[] | null
+  osVersion: string | null
+  browser: string | null
+  browserVersion: string | null
+  viewport: string | null
+  status: string | null
+  criticals: number
+  warnings: number
+  passed: number
 }
 
 export type CiRunSelector =
