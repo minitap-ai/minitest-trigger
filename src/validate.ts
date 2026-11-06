@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import { execFileSync } from 'child_process'
-import type { DeviceType } from './api'
+import type { DeviceType, RunTarget } from './api'
 
 export function parseDeviceType(
   input: string,
@@ -57,6 +57,71 @@ export function validateRunFlags(opts: {
     throw new Error(
       '`android-build-path` was provided but `run-android` is false.\n' +
         '  Either set `run-android: true` or remove `android-build-path`.',
+    )
+  }
+}
+
+/**
+ * `targets` lists every target, so the inputs it replaces must stay unset and
+ * every build path must have a target to install on.
+ */
+export function validateTargetsInputs(opts: {
+  targets: RunTarget[]
+  runIos: boolean
+  runAndroid: boolean
+  runWeb: boolean
+  iosBuildPath: string
+  androidBuildPath: string
+  iosDeviceType?: DeviceType
+  androidDeviceType?: DeviceType
+  webTargets: string
+  webUrl: string
+}): void {
+  const replaced = [
+    opts.iosDeviceType && '`ios-device-type`',
+    opts.androidDeviceType && '`android-device-type`',
+    opts.webTargets && '`web-targets`',
+    opts.runWeb && '`run-web: true`',
+  ].filter(Boolean)
+  if (replaced.length) {
+    throw new Error(
+      `\`targets\` replaces ${replaced.join(', ')}.\n` +
+        '  Describe every device and browser in `targets` (e.g. `platform=ios,device=tablet` or `platform=web,browser=chrome,viewport=desktop`) and remove the other inputs.',
+    )
+  }
+  const platforms = new Set(opts.targets.map((target) => target.platform))
+  for (const [platform, enabled, buildPath] of [
+    ['ios', opts.runIos, opts.iosBuildPath],
+    ['android', opts.runAndroid, opts.androidBuildPath],
+  ] as const) {
+    if (!enabled && platforms.has(platform)) {
+      throw new Error(
+        `\`run-${platform}\` is false but \`targets\` has a ${platform} line.\n` +
+          `  With \`targets\`, the platforms are the ones it lists: remove \`run-${platform}\`.`,
+      )
+    }
+    const backends = new Set(
+      opts.targets
+        .filter((target) => target.platform === platform)
+        .map((target) => target.backend ?? 'cloud'),
+    )
+    if (buildPath && backends.size > 1) {
+      throw new Error(
+        `\`${platform}-build-path\` cannot fill both the cloud and the physical ${platform} targets: a simulator or emulator build and a device build are different files.\n` +
+          `  Remove \`${platform}-build-path\` to let Minitest build both, or split the cloud and physical lines into two runs.`,
+      )
+    }
+    if (buildPath && !platforms.has(platform)) {
+      throw new Error(
+        `\`${platform}-build-path\` was provided but \`targets\` has no ${platform} line to install it on.\n` +
+          `  Add a \`platform=${platform}\` line to \`targets\` or remove \`${platform}-build-path\`.`,
+      )
+    }
+  }
+  if (opts.webUrl.trim() && !platforms.has('web')) {
+    throw new Error(
+      '`web-url` was provided but `targets` has no web line.\n' +
+        '  Add a `platform=web` line to `targets` or remove `web-url`.',
     )
   }
 }

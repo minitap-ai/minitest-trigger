@@ -45,6 +45,17 @@ inputs:
   web-targets:
     description: 'Explicit web targets as a comma-separated list of `<browser>:<viewport>` (e.g. "chrome:desktop,safari:mobile"). Valid: chrome:desktop, firefox:desktop, edge:desktop, chrome:tablet, firefox:tablet, edge:tablet, chrome:mobile (Android), safari:mobile (iOS). Enables the web lane on its own.'
     required: false
+  targets:
+    description: >-
+      Every device and browser the run executes on, one per line. Each line is a comma-separated list of key=value pairs:
+      `platform` (ios, android or web; required), `backend` (cloud or physical; default cloud), `device` (phone, tablet or tv),
+      `model` (exact farm model; physical only), `os` (OS major, e.g. 27), `browser` (chrome, edge or firefox),
+      `version` (browser major, e.g. 157) and `viewport` (desktop, tablet or mobile).
+      Example: "platform=ios,os=26" and "platform=web,browser=chrome,version=157,viewport=desktop".
+      When set, it replaces `ios-device-type`, `android-device-type`, `run-web` and `web-targets` (setting them too fails the step);
+      the platforms are the ones it lists, `run-ios` / `run-android` may only stay true, and builds still come from `ios-build-path` / `android-build-path`.
+      Leave it empty to keep the per-platform inputs.
+    required: false
   web-url:
     description: 'Per-run web URL override (e.g. a PR preview deployment). When set, the web lane tests this URL instead of building the commit. Applies when run-web or web-targets is set.'
     required: false
@@ -88,6 +99,8 @@ outputs:
     description: 'The run verdict when wait-for-result is enabled: passed, failed, error or nothing_affected. Empty otherwise.'
   batch-url:
     description: 'Link to the run in the Minitest dashboard, when one was created.'
+  targets:
+    description: 'JSON array with one entry per target: `label` (e.g. "iPhone · iOS 27", "Chrome 157 · Desktop"), `platform`, `status`, `criticals` and `warnings`. Counts are filled when wait-for-result is enabled; without it, the targets sent in `targets` are listed as queued.'
 
 runs:
   using: 'node20'

@@ -5,9 +5,13 @@ import {
   uploadBuild,
   triggerRun,
   RUN_SCOPES,
+  TriggerRunError,
   type Platform,
   type RunScope,
+  type RunTarget,
 } from './api'
+import { parseTargets } from './targets'
+import { reportTargets, requestedRows, resultRows } from './summary'
 import { getCiMetadata } from './ci-metadata'
 import { getCommitTitle } from './commit-title'
 import { resolvePrHeadSha } from './commit-sha'
@@ -16,6 +20,7 @@ import { parseWebTargets } from './web-targets'
 import {
   parseDeviceType,
   validateRunFlags,
+  validateTargetsInputs,
   validateAndroidBuild,
   validateIosBuild,
 } from './validate'
@@ -45,6 +50,7 @@ async function run(): Promise<void> {
     const iosBuildPath = core.getInput('ios-build-path')
     const androidBuildPath = core.getInput('android-build-path')
     const webTargetsRaw = core.getInput('web-targets')
+    const targetsRaw = core.getInput('targets')
     const webUrl = core.getInput('web-url')
     const tenantId = core.getInput('tenant-id')
     const apiUrl = core.getInput('api-url')
@@ -98,31 +104,57 @@ async function run(): Promise<void> {
     }
     const scope = scopeNormalized as RunScope | undefined
 
+    const parsedTargets = targetsRaw ? parseTargets(targetsRaw) : []
+    const targets = parsedTargets.length ? parsedTargets : undefined
     const parsedWebTargets = webTargetsRaw
       ? parseWebTargets(webTargetsRaw)
       : undefined
     const webTargets = parsedWebTargets?.length ? parsedWebTargets : undefined
-    const wantWeb = runWeb || webTargets !== undefined
 
-    validateRunFlags({
-      runIos,
-      runAndroid,
-      wantWeb,
-      iosBuildPath,
-      androidBuildPath,
-      iosDeviceType,
-      androidDeviceType,
-    })
-
-    // Build the platforms array forwarded to the server. Omitted only when
-    // both native platforms are enabled and the web lane is off (the default),
-    // so the server's "both natives, web when configured" default applies.
-    const platforms: Platform[] | undefined =
-      runIos && runAndroid && !wantWeb
-        ? undefined
-        : ([runIos && 'ios', runAndroid && 'android', wantWeb && 'web'].filter(
-            Boolean,
-          ) as Platform[])
+    let wantWeb: boolean
+    let platforms: Platform[] | undefined
+    if (targets) {
+      validateTargetsInputs({
+        targets,
+        runIos,
+        runAndroid,
+        runWeb,
+        iosBuildPath,
+        androidBuildPath,
+        iosDeviceType,
+        androidDeviceType,
+        webTargets: webTargetsRaw,
+        webUrl,
+      })
+      wantWeb = targets.some((target) => target.platform === 'web')
+    } else {
+      wantWeb = runWeb || webTargets !== undefined
+      validateRunFlags({
+        runIos,
+        runAndroid,
+        wantWeb,
+        iosBuildPath,
+        androidBuildPath,
+        iosDeviceType,
+        androidDeviceType,
+      })
+      // Omitted only when both native platforms are enabled and the web lane
+      // is off (the default), so the server's "both natives, web when
+      // configured" default applies.
+      platforms =
+        runIos && runAndroid && !wantWeb
+          ? undefined
+          : ([
+              runIos && 'ios',
+              runAndroid && 'android',
+              wantWeb && 'web',
+            ].filter(Boolean) as Platform[])
+    }
+    const nativeLanes = new Set(
+      targets
+        ? targets.map((target) => target.platform)
+        : [runIos && 'ios', runAndroid && 'android'],
+    )
 
     // ── Resolve CI metadata (PR / release info) ─────────────────────
     const eventName = process.env.GITHUB_EVENT_NAME
@@ -154,7 +186,7 @@ async function run(): Promise<void> {
     if (iosBuildPath) {
       core.info('Validating iOS build...')
       iosUploadPath = validateIosBuild(iosBuildPath)
-    } else if (runIos) {
+    } else if (nativeLanes.has('ios')) {
       core.info(
         'No `ios-build-path` provided — Minitest will build the iOS app for this commit',
       )
@@ -164,7 +196,7 @@ async function run(): Promise<void> {
     if (androidBuildPath) {
       core.info('Validating Android build...')
       androidUploadPath = validateAndroidBuild(androidBuildPath)
-    } else if (runAndroid) {
+    } else if (nativeLanes.has('android')) {
       core.info(
         'No `android-build-path` provided — Minitest will build the Android app for this commit',
       )
@@ -242,6 +274,21 @@ async function run(): Promise<void> {
     }
 
     // ── Trigger test run ─────────────────────────────────────────────
+    const lanes = targets
+      ? {
+          targets: withBuilds(targets, {
+            ios: iosBuildId,
+            android: androidBuildId,
+          }),
+        }
+      : {
+          platforms,
+          iosBuildId,
+          androidBuildId,
+          iosDeviceType,
+          androidDeviceType,
+          webTargets: wantWeb ? webTargets : undefined,
+        }
     const result = await triggerRun(apiUrl, token, {
       appSlug,
       commitTitle,
@@ -249,12 +296,7 @@ async function run(): Promise<void> {
       userStoryTypes,
       userStoryIds,
       scope,
-      platforms,
-      iosBuildId,
-      androidBuildId,
-      iosDeviceType,
-      androidDeviceType,
-      webTargets: wantWeb ? webTargets : undefined,
+      ...lanes,
       webUrl: wantWeb ? webUrl.trim() || undefined : undefined,
       tenantId: tenantId || undefined,
       prNumber: ciMetadata.prNumber,
@@ -262,6 +304,8 @@ async function run(): Promise<void> {
       baseRef: ciMetadata.baseRef,
       headRef: ciMetadata.headRef,
       cancelPreviousRuns,
+    }).catch((error: unknown) => {
+      throw targets ? explainTargetRefusal(error) : error
     })
 
     core.info('────────────────────────────────────────────')
@@ -281,10 +325,12 @@ async function run(): Promise<void> {
 
     core.setOutput('batch-id', result.batchId ?? '')
     core.setOutput('status', result.status)
+    const requested = requestedRows(targets ?? [])
 
     if (!waitForResult) {
       core.setOutput('result', '')
       core.setOutput('batch-url', '')
+      await reportTargets(requested, null)
       return
     }
 
@@ -325,6 +371,8 @@ async function run(): Promise<void> {
     })
 
     if (!outcome.timedOut) core.setOutput('batch-id', outcome.batchId ?? '')
+    const ran = outcome.timedOut ? [] : (outcome.targets ?? [])
+    await reportTargets(ran.length ? resultRows(ran) : requested, outcome.url)
     reportVerdict(outcome, { failOnFailure, waitTimeoutMinutes })
   } catch (error) {
     if (error instanceof Error) {
@@ -333,6 +381,47 @@ async function run(): Promise<void> {
       core.setFailed('An unexpected error occurred')
     }
   }
+}
+
+function withBuilds(
+  targets: RunTarget[],
+  builds: Partial<Record<Platform, string>>,
+): RunTarget[] {
+  return targets.map((target) => {
+    const buildId =
+      target.platform === 'web' ? undefined : builds[target.platform]
+    return buildId ? { ...target, buildId } : target
+  })
+}
+
+const REFUSAL_HINTS: Array<[RegExp, string]> = [
+  [
+    /Several native targets|may appear at most once per batch/,
+    'This workspace runs one device per platform. Keep one `ios` and one `android` line in `targets`, or ask Minitap to enable several devices per platform.',
+  ],
+  [
+    /browser_version_requested/,
+    'Browser versions are not enabled for this workspace yet. Remove `version=` from the web lines in `targets`, or ask Minitap to enable them.',
+  ],
+  [
+    /tablet/i,
+    'Tablets are not enabled for this workspace yet. Remove `device=tablet` from `targets`, or ask Minitap to enable them.',
+  ],
+  [
+    /\btv\b|Android TV/i,
+    'Android TV is not enabled for this workspace yet. Remove `device=tv` from `targets`, or ask Minitap to enable it.',
+  ],
+]
+
+function explainTargetRefusal(error: unknown): unknown {
+  if (
+    !(error instanceof TriggerRunError) ||
+    (error.statusCode !== 422 && error.statusCode !== 403)
+  ) {
+    return error
+  }
+  const hint = REFUSAL_HINTS.find(([pattern]) => pattern.test(error.message))
+  return hint ? new Error(`${error.message}\n  ${hint[1]}`) : error
 }
 
 run()
