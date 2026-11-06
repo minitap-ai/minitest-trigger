@@ -41,6 +41,7 @@ jobs:
 | `android-build-path` | No       | —                                        | Pre-built Android `.apk` (must target x86-64). Optional.                     |
 | `run-web`            | No       | `false`                                  | Run the web lane. For a web app linked to a GitHub repo, Minitest builds and serves the commit this workflow runs on (no `web-url` needed); otherwise it tests the app's configured web URL. See [Web runs](#web-runs). |
 | `web-targets`        | No       | —                                        | Explicit web targets, comma-separated `<browser>:<viewport>` (e.g. `chrome:desktop,safari:mobile`). Enables the web lane on its own. |
+| `targets`            | No       | —                                        | Every device and browser of the run, one per line (e.g. `platform=ios,os=27`). Replaces the per-platform device and web inputs. See [Run targets](#run-targets). |
 | `web-url`            | No       | —                                        | Per-run web URL override (e.g. a PR preview deployment). When set, the web lane tests this URL instead of building the commit. Applies when `run-web` or `web-targets` is set. |
 | `user-story-types`   | No       | —                                        | Comma-separated user story types to run (e.g., `login,checkout`)             |
 | `scope`              | No       | —                                        | `affected` (impacted since the last release tag), `pr-affected` (impacted by this pull request, see [Scoping a run to a pull request](#scoping-a-run-to-a-pull-request)) or `full`. Ignored when `user-stories` / `user-story-types` is set. |
@@ -72,6 +73,74 @@ For native iPad runs, an iPhone-only build may run in compatibility mode (`table
     android-device-type: tablet
 ```
 
+## Run targets
+
+`targets` lists every device and browser the run executes on, one per line. Each scenario runs once on every target. A line is a comma-separated list of `key=value` pairs:
+
+| Key        | Values                          | Applies to      | Notes |
+| ---------- | ------------------------------- | --------------- | ----- |
+| `platform` | `ios`, `android`, `web`         | every line      | Required. |
+| `backend`  | `cloud`, `physical`             | `ios`, `android` | Default `cloud`. `physical` runs on a phone of the Minitap device farm. |
+| `device`   | `phone`, `tablet`, `tv`         | cloud `ios`, `android` | Default `phone`. `tv` is Android only. |
+| `model`    | farm model, e.g. `iPhone 13`    | `backend=physical` | The exact farm model to lease. Without it, any farm phone of the platform. |
+| `os`       | OS version, e.g. `26`, `27`, `15` | `ios`, `android` | Default: Minitest's pick. A cloud device takes the major (`27.0` is read as `27`); a physical phone keeps the exact version and needs `model`. Not on a TV. |
+| `browser`  | `chrome`, `edge`, `firefox`     | `web`           | Without it, a `platform=web` line runs the app's default web targets. |
+| `version`  | browser major, e.g. `157`       | `web` with `browser` | Not on `viewport=mobile`. |
+| `viewport` | `desktop`, `tablet`, `mobile`   | `web`           | Default `desktop`. |
+
+Keys and enum values are case-insensitive. A malformed line, an unknown key or the same target listed twice fails the step before anything is uploaded.
+
+**How it combines with the other inputs**
+
+- Builds still come from `ios-build-path` / `android-build-path`. Every `ios` line installs the iOS build and every `android` line the Android build. A platform listed without a build path is built by Minitest for this commit, as today. A build path without a line of its platform is an error. So is a build path for a platform that mixes cloud and physical lines, because a simulator build and a device build are different files.
+- `targets` defines the platforms. `run-ios` / `run-android` may stay at their default `true`. Setting one to `false` while `targets` lists that platform is an error.
+- `ios-device-type`, `android-device-type`, `web-targets` and `run-web: true` are replaced by `targets`. Setting any of them next to it is an error.
+- `web-url` still applies, to the web lines without a URL of their own. It needs a `platform=web` line.
+- With `targets` empty, every other input behaves exactly as before.
+
+Several devices on one platform, browser versions, tablets and Android TV are enabled per workspace. When yours does not have one, the run is refused and the step fails with the server's message and what to change. For example: *"Several native targets on 'ios' are not available for this workspace yet. This workspace runs one device per platform…"*.
+
+The job summary and the `targets` output list one row per target, named like the Minitest run page ("iPhone · iOS 27", "Chrome 157 · Desktop"). With `wait-for-result`, each row carries its status and its critical and warning counts, and the summary adds a "N critical · M warnings" total per platform.
+
+### Two iPhones: iOS 26 and iOS 27
+
+```yaml
+- uses: minitap-ai/minitest-trigger@v1
+  with:
+    app-slug: my-app
+    ios-build-path: ./build/Build/Products/Debug-iphonesimulator/MyApp.app
+    targets: |
+      platform=ios,os=26
+      platform=ios,os=27
+```
+
+### Chrome 157 and Chrome 156
+
+```yaml
+- uses: minitap-ai/minitest-trigger@v1
+  with:
+    app-slug: my-web-app
+    targets: |
+      platform=web,browser=chrome,version=157,viewport=desktop
+      platform=web,browser=chrome,version=156,viewport=desktop
+```
+
+### A real iPhone next to the simulator
+
+A farm iPhone installs a device build (`.ipa` built for `iphoneos`), and a simulator installs a simulator build. One `ios-build-path` cannot fill both, so leave it out and let Minitest build both variants of the commit:
+
+```yaml
+- uses: minitap-ai/minitest-trigger@v1
+  with:
+    app-slug: my-app
+    run-android: false
+    targets: |
+      platform=ios,os=27
+      platform=ios,backend=physical,model=iPhone 13,os=26
+```
+
+To run on the real iPhone only, keep its line alone and point `ios-build-path` at your device `.ipa`.
+
 ## Outputs
 
 | Output      | Description                           |
@@ -80,6 +149,7 @@ For native iPad runs, an iPhone-only build may run in compatibility mode (`table
 | `status`    | Initial status of the triggered batch |
 | `result`    | The verdict when `wait-for-result` is enabled: `passed`, `failed`, `error` or `nothing_affected`. Empty otherwise (including on timeout). |
 | `batch-url` | Link to the run in the Minitest dashboard, when one was created |
+| `targets`   | JSON array, one entry per target: `label`, `platform`, `status`, `criticals`, `warnings`. See [Run targets](#run-targets). |
 
 ## How It Works
 
