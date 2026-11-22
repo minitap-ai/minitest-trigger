@@ -10,6 +10,7 @@ Public GitHub Action (`minitap-ai/minitest-trigger`) that triggers Minitap test 
 - **`src/main.ts`** — Entry point: reads inputs → OIDC token → optional build upload → trigger run → set outputs → optionally wait for the verdict
 - **`src/api.ts`** — HTTP client with three functions: `uploadBuild()` (multipart form), `triggerRun()` (JSON) and `getCiStatus()` (verdict polling)
 - **`src/wait-for-result.ts`** — `waitForVerdict()`: polls `getCiStatus()` until the run reaches a verdict or the timeout elapses. Opt-in via the `wait-for-result` input
+- **`script-jobs/`** — separate composite action (`minitap-ai/minitest-trigger/script-jobs@v2`) that runs a Maestro or Espresso suite with `minitest script-runs submit` (API key, not OIDC) and writes outputs and the job summary from its JSON (`submit.sh`, `summary.py`; tested by `src/script-jobs.test.ts` with a fake `uvx`)
 - **`dist/`** — ncc bundle, NOT committed to source. Built automatically by the release workflow
 
 ## API Contract

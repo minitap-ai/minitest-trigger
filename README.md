@@ -448,6 +448,39 @@ Leave `fail-on-failure` at its default to observe the verdict without gating on 
 
 `fail-on-failure: true` without `wait-for-result: true` is a configuration error and fails the step immediately: there is no verdict to fail on.
 
+## Maestro and Espresso suites
+
+The `script-jobs` action runs **your own** Maestro flows or Espresso tests on Minitap devices, one device per flow or test class, and waits for the verdict. It uses `minitest script-runs submit` under the hood and a Minitest API key (store it as a secret), not OIDC.
+
+```yaml
+jobs:
+  maestro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: minitap-ai/minitest-trigger/script-jobs@v2
+        with:
+          api-key: ${{ secrets.MINITEST_API_KEY }}
+          app-id: 8f9d0edb-f216-4239-b364-9574c333cc48
+          framework: maestro # or espresso, with the test APK in `tests`
+          tests: ./flows
+          build-id: ${{ vars.MINITEST_BUILD_ID }}
+```
+
+| Input | Description |
+| --- | --- |
+| `api-key`, `app-id` | Minitest API key and app (required) |
+| `framework` | `maestro` or `espresso` (required) |
+| `tests` | Maestro flows directory or zip, or the Espresso test APK (required) |
+| `build-id` | Native build of the app, as uploaded to Minitest (required) |
+| `model`, `os-version` | `phone` (default) or `tablet`; OS major, latest by default |
+| `run-name`, `commit-sha`, `branch` | Shown on the run. Default to the workflow name and run number, the PR head (or workflow) commit and the branch |
+| `timeout-minutes` | How long to wait for the verdict (default 60) |
+| `fail-on-failure` | Fail the step when a test fails or Minitap could not run some tests (default true) |
+| `cli-version` | minitest-cli version to run, latest by default |
+
+Outputs: `job-id`, `run-url` and `status` (`passed`, `failed`, or `error` when no verdict came back). The job summary lists every test with its status and failure reason, and links the run.
+
 ## Prerequisites
 
 Your workflow **must** have the `id-token: write` permission for OIDC authentication to work:
