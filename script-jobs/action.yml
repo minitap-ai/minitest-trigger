@@ -1,0 +1,95 @@
+name: 'Run a Maestro or Espresso suite on Minitest'
+description: 'Run your own Maestro flows or Espresso tests on Minitap devices, one device per flow or test class, and wait for the verdict.'
+author: 'Minitap'
+branding:
+  icon: 'play-circle'
+  color: 'purple'
+
+inputs:
+  api-key:
+    description: 'Minitest API key of the workspace. Pass it from a secret.'
+    required: true
+  app-id:
+    description: 'Minitest app ID.'
+    required: true
+  framework:
+    description: '`maestro` or `espresso`.'
+    required: true
+  tests:
+    description: 'Maestro flows directory or zip, or the Espresso test APK, relative to the workspace.'
+    required: true
+  build-id:
+    description: 'Native build of the app to test, as uploaded to Minitest.'
+    required: true
+  model:
+    description: '`phone` (default) or `tablet`.'
+    required: false
+  os-version:
+    description: 'OS major version. Latest when empty.'
+    required: false
+  run-name:
+    description: 'Name of the script run.'
+    required: false
+    default: '${{ github.workflow }} #${{ github.run_number }}'
+  commit-sha:
+    description: 'Commit under test. Defaults to the pull request head, else the workflow commit.'
+    required: false
+    default: ${{ github.event.pull_request.head.sha || github.sha }}
+  branch:
+    description: 'Branch under test.'
+    required: false
+    default: ${{ github.head_ref || github.ref_name }}
+  timeout-minutes:
+    description: 'How long to wait for the verdict.'
+    required: false
+    default: '60'
+  fail-on-failure:
+    description: 'Fail the step when a test fails or Minitap could not run some tests.'
+    required: false
+    default: 'true'
+  cli-version:
+    description: 'minitest-cli version to run. Latest when empty.'
+    required: false
+  api-url:
+    description: 'Override the Minitest API URL.'
+    required: false
+    default: 'https://testing-service.app.minitap.ai'
+  webapp-url:
+    description: 'Override the Minitest webapp URL used in links.'
+    required: false
+    default: 'https://app.minitap.ai'
+
+outputs:
+  job-id:
+    description: 'ID of the job.'
+    value: ${{ steps.run.outputs.job-id }}
+  run-url:
+    description: 'Link to the script run in Minitest.'
+    value: ${{ steps.run.outputs.run-url }}
+  status:
+    description: '`passed` or `failed`, or `error` when no verdict came back (Minitap could not run the job, or the wait timed out).'
+    value: ${{ steps.run.outputs.status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: astral-sh/setup-uv@v10.4.0
+    - id: run
+      shell: bash
+      env:
+        MINITEST_API_KEY: ${{ inputs.api-key }}
+        MINITEST_API_URL: ${{ inputs.api-url }}
+        MINITEST_WEBAPP_URL: ${{ inputs.webapp-url }}
+        INPUT_APP_ID: ${{ inputs.app-id }}
+        INPUT_FRAMEWORK: ${{ inputs.framework }}
+        INPUT_TESTS: ${{ inputs.tests }}
+        INPUT_BUILD_ID: ${{ inputs.build-id }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_OS_VERSION: ${{ inputs.os-version }}
+        INPUT_RUN_NAME: ${{ inputs.run-name }}
+        INPUT_COMMIT_SHA: ${{ inputs.commit-sha }}
+        INPUT_BRANCH: ${{ inputs.branch }}
+        INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        INPUT_FAIL_ON_FAILURE: ${{ inputs.fail-on-failure }}
+        INPUT_CLI_VERSION: ${{ inputs.cli-version }}
+      run: bash "$GITHUB_ACTION_PATH/submit.sh"
