@@ -39,6 +39,9 @@ inputs:
     description: 'Branch under test.'
     required: false
     default: ${{ github.head_ref || github.ref_name }}
+  env:
+    description: 'Values for the tests, one KEY=VALUE per line, usually from secrets (test accounts...). Maestro reads them as ${KEY}, Espresso as instrumentation arguments. Each value is masked in the log and never printed.'
+    required: false
   timeout-minutes:
     description: 'How long to wait for the verdict.'
     required: false
@@ -94,4 +97,5 @@ runs:
         INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
         INPUT_FAIL_ON_FAILURE: ${{ inputs.fail-on-failure }}
         INPUT_CLI_VERSION: ${{ inputs.cli-version }}
+        INPUT_ENV: ${{ inputs.env }}
       run: bash "$GITHUB_ACTION_PATH/submit.sh"

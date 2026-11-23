@@ -17,6 +17,25 @@ args=(--json --app "$INPUT_APP_ID" script-runs submit
 [ -n "${INPUT_COMMIT_SHA:-}" ] && args+=(--commit-sha "$INPUT_COMMIT_SHA")
 [ -n "${INPUT_BRANCH:-}" ] && args+=(--branch "$INPUT_BRANCH")
 
+# Values for the tests: masked in the log, handed to the CLI in a private file, never on its
+# command line, and the file is gone when the step ends.
+if [ -n "${INPUT_ENV:-}" ]; then
+  env_file="$(mktemp)"
+  chmod 600 "$env_file"
+  trap 'rm -f "$env_file"' EXIT
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in '' | '#'*) continue ;; esac
+    value="${line#*=}"
+    if [ "$value" != "$line" ] && [ -n "$value" ]; then
+      echo "::add-mask::$value"
+      unquoted="${value#[\"\']}" && unquoted="${unquoted%[\"\']}"
+      [ "$unquoted" != "$value" ] && [ -n "$unquoted" ] && echo "::add-mask::$unquoted"
+    fi
+    printf '%s\n' "$line" >>"$env_file"
+  done <<<"$INPUT_ENV"
+  args+=(--env-file "$env_file")
+fi
+
 verdict="$(mktemp)"
 echo "Running the $INPUT_FRAMEWORK suite in $INPUT_TESTS on Minitap devices and waiting for the verdict..."
 uvx --quiet --from "$cli_from" minitest "${args[@]}" >"$verdict"

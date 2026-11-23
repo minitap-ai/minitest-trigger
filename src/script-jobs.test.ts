@@ -1,5 +1,11 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -38,7 +44,7 @@ function run(
   writeFileSync(join(dir, 'answer.json'), out)
   writeFileSync(
     join(dir, 'uvx'),
-    `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > "${dir}/args"\ncat "${dir}/answer.json"\nexit ${cliExit}\n`,
+    `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > "${dir}/args"\nwhile [ $# -gt 0 ]; do [ "$1" = --env-file ] && cp "$2" "${dir}/env-file"; shift; done\ncat "${dir}/answer.json"\nexit ${cliExit}\n`,
   )
   chmodSync(join(dir, 'uvx'), 0o755)
   writeFileSync(join(dir, 'output'), '')
@@ -68,6 +74,9 @@ function run(
     args: readFileSync(join(dir, 'args'), 'utf8').trim().split('\n'),
     outputs: readFileSync(join(dir, 'output'), 'utf8'),
     summary: readFileSync(join(dir, 'summary'), 'utf8'),
+    envFile: existsSync(join(dir, 'env-file'))
+      ? readFileSync(join(dir, 'env-file'), 'utf8')
+      : null,
   }
 }
 
@@ -124,5 +133,26 @@ describe('script-jobs action', () => {
     expect(r.summary).toContain(
       'Minitap could not run the job or the wait timed out (exit 7)',
     )
+  })
+
+  it('hands the values to the CLI in a file, masked, never on its command line', () => {
+    const r = run(job('passed', [unit('sign_in', 'passed')]), 0, {
+      INPUT_ENV: '# test account\nUSER=qa@food.test\n\nPASSWORD="s3cr3t"\n',
+    })
+
+    expect(r.exit).toBe(0)
+    expect(r.envFile).toBe('USER=qa@food.test\nPASSWORD="s3cr3t"\n')
+    expect(r.args).toContain('--env-file')
+    expect(r.args.join(' ')).not.toMatch(/qa@food|s3cr3t/)
+    expect(r.log).toContain('::add-mask::qa@food.test')
+    expect(r.log).toContain('::add-mask::s3cr3t')
+    expect(r.summary).not.toMatch(/qa@food|s3cr3t/)
+  })
+
+  it('passes no env file without values', () => {
+    const r = run(job('passed', [unit('sign_in', 'passed')]), 0)
+
+    expect(r.args).not.toContain('--env-file')
+    expect(r.envFile).toBeNull()
   })
 })
