@@ -475,9 +475,25 @@ jobs:
 | `build-id` | Native build of the app, as uploaded to Minitest (required) |
 | `model`, `os-version` | `phone` (default) or `tablet`; OS major, latest by default |
 | `run-name`, `commit-sha`, `branch` | Shown on the run. Default to the workflow name and run number, the PR head (or workflow) commit and the branch |
+| `env` | Values for the tests, one `KEY=VALUE` per line, usually from secrets (test accounts…). Maestro reads them as `${KEY}`, Espresso as instrumentation arguments. Each value is masked in the log and never printed |
 | `timeout-minutes` | How long to wait for the verdict (default 60) |
 | `fail-on-failure` | Fail the step when a test fails or Minitap could not run some tests (default true) |
 | `cli-version` | minitest-cli version to run, latest by default |
+
+To sign in with a test account, keep its credentials in repository secrets and pass them with `env`:
+
+```yaml
+      - uses: minitap-ai/minitest-trigger/script-jobs@v2
+        with:
+          api-key: ${{ secrets.MINITEST_API_KEY }}
+          app-id: <app id>
+          framework: maestro
+          tests: ./flows
+          build-id: ${{ steps.build.outputs.id }}
+          env: |
+            USER=${{ secrets.TEST_USER }}
+            PASSWORD=${{ secrets.TEST_PASSWORD }}
+```
 
 Outputs: `job-id`, `run-url` and `status` (`passed`, `failed`, or `error` when no verdict came back). The job summary lists every test with its status and failure reason, and links the run.
 
