@@ -132,10 +132,9 @@ export type DeviceType = 'phone' | 'tablet'
 
 /**
  * Which scenarios a run covers: `affected` (impacted since the last release, on
- * a matching release tag), `pr-affected` (impacted by this pull request) or
- * `full` (whole suite).
+ * a matching release tag) or `full` (whole suite).
  */
-export const RUN_SCOPES = ['affected', 'pr-affected', 'full'] as const
+export const RUN_SCOPES = ['affected', 'full'] as const
 
 export type RunScope = (typeof RUN_SCOPES)[number]
 

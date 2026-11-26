@@ -97,6 +97,11 @@ async function run(): Promise<void> {
     }
 
     const scopeNormalized = scopeRaw ? scopeRaw.trim().toLowerCase() : undefined
+    if (scopeNormalized === 'pr-affected') {
+      throw new Error(
+        '`scope: pr-affected` was removed; use `affected` or `full`.',
+      )
+    }
     if (scopeNormalized && !RUN_SCOPES.includes(scopeNormalized as RunScope)) {
       throw new Error(
         `\`scope\` must be one of ${RUN_SCOPES.map((value) => `"${value}"`).join(', ')} (got "${scopeRaw}").`,
