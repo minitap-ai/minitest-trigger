@@ -233,6 +233,33 @@ describe('native device-type inputs through the action and real API serializer',
   })
 })
 
+describe('scope input', () => {
+  it.each(['affected', 'full'])(
+    'sends scope %s to the server',
+    async (scope) => {
+      input('scope', scope)
+      await runAction()
+
+      expect(core.setFailed).not.toHaveBeenCalled()
+      expect(sentRequest()).toMatchObject({ scope })
+    },
+  )
+
+  it.each(['pr-affected', ' PR-Affected '])(
+    'rejects the removed %s scope before any network call',
+    async (scope) => {
+      input('scope', scope)
+      await runAction()
+
+      expect(core.setFailed).toHaveBeenCalledWith(
+        '`scope: pr-affected` was removed; use `affected` or `full`.',
+      )
+      expect(core.getIDToken).not.toHaveBeenCalled()
+      expect(HttpClient.prototype.request).not.toHaveBeenCalled()
+    },
+  )
+})
+
 describe('waiting for the exact launched run', () => {
   const status = (batchId: string, result: 'passed' | 'failed') => ({
     state: 'completed',
